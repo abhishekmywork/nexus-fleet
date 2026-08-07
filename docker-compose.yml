@@ -46,7 +46,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_NAME: ${DB_NAME:-nexus_admin}
       PORT: 4000
-      CORS_ORIGINS: http://localhost:3000,http://localhost,http://147.93.31.140
+      CORS_ORIGINS: http://localhost:3000,http://localhost,http://147.93.31.140,http://mstechind.com,https://mstechind.com
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh}
       JWT_TWO_FACTOR_SECRET: ${JWT_TWO_FACTOR_SECRET:-change-me-2fa}
