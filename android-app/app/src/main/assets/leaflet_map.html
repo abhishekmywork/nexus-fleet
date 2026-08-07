@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="leaflet.css"/>
+<script src="leaflet.js"></script>
+<script>L.Icon.Default.prototype.options.imagePath = 'images/';</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100vw; height: 100vh; overflow: hidden; background: #e8eff7; }
+#map { width: 100vw; height: 100vh; background: #e8eff7; position: fixed; top: 0; left: 0; }
+.leaflet-container { background: #e8eff7 !important; }
+.vehicle-marker {
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.leaflet-control-zoom { border: none !important; }
+.leaflet-control-zoom a { background: rgba(255,255,255,0.92) !important; color: #333 !important; border: none !important; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+var mapDiv = document.getElementById('map');
+mapDiv.style.width = window.innerWidth + 'px';
+mapDiv.style.height = window.innerHeight + 'px';
+
+var map = L.map('map', {
+    zoomControl: true,
+    attributionControl: false
+}).setView([22.5726, 88.3639], 5);
+
+map.invalidateSize();
+
+var tileLayers = {
+    standard: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }),
+    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 }),
+    terrain: L.tileLayer('https://a.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }),
+    hybrid: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18 })
+};
+
+var currentTileLayer = null;
+
+function setMapMode(mode) {
+    if (currentTileLayer) map.removeLayer(currentTileLayer);
+    currentTileLayer = tileLayers[mode] || tileLayers.standard;
+    currentTileLayer.addTo(map);
+    mapDiv.style.width = window.innerWidth + 'px';
+    mapDiv.style.height = window.innerHeight + 'px';
+    setTimeout(function() { map.invalidateSize(); }, 100);
+}
+
+setMapMode('standard');
+
+var markers = {};
+var geofenceOverlays = [];
+var trailPolyline = null;
+var trailStartMarker = null;
+var trailEndMarker = null;
+var selectedId = null;
+
+function updateVehicles(json) {
+    try {
+        var vehicles = JSON.parse(json);
+        var ids = {};
+        vehicles.forEach(function(v) {
+            ids[v.deviceId] = true;
+            var color = v.isMoving ? '#22c55e' : (v.ignition === 'ON' ? '#f97316' : '#94a3b8');
+            var icon = L.divIcon({
+                className: '',
+                html: '<div class="vehicle-marker" style="width:28px;height:28px;background:' + color + ';display:flex;align-items:center;justify-content:center;">' +
+                      '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>' +
+                      '</div>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+            if (!markers[v.deviceId]) {
+                markers[v.deviceId] = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(map);
+                markers[v.deviceId].on('click', function() {
+                    selectedId = v.deviceId;
+                    try { Android.onVehicleTap(v.deviceId); } catch(e) {}
+                });
+                markers[v.deviceId]._vehicleData = v;
+            } else {
+                markers[v.deviceId].setLatLng([v.latitude, v.longitude]);
+                markers[v.deviceId].setIcon(icon);
+                markers[v.deviceId]._vehicleData = v;
+            }
+        });
+        Object.keys(markers).forEach(function(id) {
+            if (!ids[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+        });
+    } catch(e) { console.log('updateVehicles error: ' + e); }
+}
+
+function setVisibleVehicles(json) {
+    try {
+        var ids = JSON.parse(json);
+        Object.keys(markers).forEach(function(id) {
+            if (ids.indexOf(id) !== -1) { if (!map.hasLayer(markers[id])) map.addLayer(markers[id]); }
+            else { if (map.hasLayer(markers[id])) map.removeLayer(markers[id]); }
+        });
+    } catch(e) {}
+}
+
+function fitBoundsToAll() {
+    try {
+        var allVisible = [];
+        Object.keys(markers).forEach(function(id) {
+            if (map.hasLayer(markers[id])) allVisible.push(markers[id].getLatLng());
+        });
+        if (allVisible.length === 0) return;
+        map.invalidateSize();
+        if (allVisible.length === 1) {
+            map.setView(allVisible[0], 16);
+        } else {
+            var group = L.featureGroup(Object.values(markers).filter(function(m) { return map.hasLayer(m); }));
+            map.fitBounds(group.getBounds().pad(0.15));
+        }
+    } catch(e) { console.log('fitBounds error: ' + e); }
+}
+
+function centerOnVehicle(deviceId) {
+    if (markers[deviceId]) {
+        map.setView(markers[deviceId].getLatLng(), 16, { animate: true });
+    }
+}
+
+function showGeofences(json) {
+    try {
+        clearGeofences();
+        var geofences = JSON.parse(json);
+        geofences.forEach(function(gf) {
+            if (!gf.enabled) return;
+            if (gf.type === 'circle') {
+                var c = gf.coordinates.center;
+                var r = gf.coordinates.radiusMeters;
+                if (c && r) {
+                    var circle = L.circle([c.lat, c.lon], {
+                        radius: r, color: '#3b82f6', weight: 3, fillColor: '#3b82f6', fillOpacity: 0.1, opacity: 0.7
+                    }).addTo(map);
+                    circle.bindTooltip(gf.name);
+                    geofenceOverlays.push(circle);
+                }
+            } else if (gf.type === 'polygon') {
+                var pts = gf.coordinates.points;
+                if (pts && pts.length >= 3) {
+                    var latlngs = pts.map(function(p) { return [p.lat, p.lon]; });
+                    var polygon = L.polygon(latlngs, {
+                        color: '#8b5cf6', weight: 3, fillColor: '#8b5cf6', fillOpacity: 0.1, opacity: 0.7
+                    }).addTo(map);
+                    polygon.bindTooltip(gf.name);
+                    geofenceOverlays.push(polygon);
+                }
+            }
+        });
+    } catch(e) { console.log('showGeofences error: ' + e); }
+}
+
+function clearGeofences() {
+    geofenceOverlays.forEach(function(o) { map.removeLayer(o); });
+    geofenceOverlays = [];
+}
+
+function showTrail(json) {
+    try {
+        clearTrail();
+        var trail = JSON.parse(json);
+        if (trail.length < 2) return;
+        var latlngs = trail.map(function(p) { return [p.latitude, p.longitude]; });
+        trailPolyline = L.polyline(latlngs, { color: '#3b82f6', weight: 5, opacity: 0.85 }).addTo(map);
+        trailStartMarker = L.circleMarker(latlngs[0], { radius: 7, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindTooltip('Start');
+        trailEndMarker = L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2 })
+            .addTo(map).bindTooltip('Current');
+        map.fitBounds(trailPolyline.getBounds().pad(0.3));
+    } catch(e) { console.log('showTrail error: ' + e); }
+}
+
+function clearTrail() {
+    if (trailPolyline) { map.removeLayer(trailPolyline); trailPolyline = null; }
+    if (trailStartMarker) { map.removeLayer(trailStartMarker); trailStartMarker = null; }
+    if (trailEndMarker) { map.removeLayer(trailEndMarker); trailEndMarker = null; }
+}
+
+map.on('click', function(e) {
+    try { Android.onMapClick(e.latlng.lat, e.latlng.lng); } catch(ex) {}
+});
+</script>
+</body>
+</html>

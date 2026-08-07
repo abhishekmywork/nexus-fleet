@@ -30,11 +30,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (allow .example templates)
 .env*
+!.env.example
+!.env.production
 
-# vercel
-.vercel
+# android build artifacts
+android-app/.gradle/
+android-app/.kotlin/
+android-app/app/build/
+android-app/build/
+android-app/local.properties
+android-app/app-crash.log
+
+# OS
+.DS_Store
+Thumbs.db
 
 # typescript
 *.tsbuildinfo

@@ -1,0 +1,49 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+
+export type AuditEntityType =
+  | 'vehicle_serving_area'
+  | 'vehicle_driver'
+  | 'vehicle_gps_device';
+
+export type AuditAction = 'assigned' | 'unassigned';
+
+@Entity('audit_logs')
+export class AuditLog {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 20 })
+  action: AuditAction;
+
+  @Column({ type: 'varchar', length: 30 })
+  entityType: AuditEntityType;
+
+  @Column({ type: 'uuid' })
+  entityId: string;
+
+  @Column({ type: 'uuid' })
+  relatedId: string;
+
+  @Column({ type: 'varchar', length: 120 })
+  relatedName: string;
+
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  entityName: string | null;
+
+  @Column({ type: 'uuid' })
+  actorId: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  actorEmail: string | null;
+
+  @Column({ type: 'varchar', length: 36 })
+  tenantId: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}

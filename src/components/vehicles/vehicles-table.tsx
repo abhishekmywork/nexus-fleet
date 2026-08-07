@@ -1,0 +1,873 @@
+"use client";
+
+import * as React from "react";
+import {
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import type { AuditLog, ServingArea, Vehicle } from "@/lib/auth-types";
+import { useAuth } from "@/components/auth/auth-provider";
+import {
+  VehicleFormDialog,
+  type VehicleFormValues,
+} from "@/components/vehicles/vehicle-form-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ImportDialog } from "@/components/common/import-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
+
+type SortKey = "plateNumber" | "make" | "year" | "status" | "driver" | "areas";
+type SortDir = "asc" | "desc";
+
+const PAGE_SIZE = 8;
+
+const STATUS_VARIANTS: Record<
+  Vehicle["status"],
+  "success" | "secondary" | "warning"
+> = {
+  active: "success",
+  inactive: "secondary",
+  maintenance: "warning",
+};
+
+function vehicleLabel(v: Vehicle) {
+  return `${v.make} ${v.model}`.trim();
+}
+
+function driverName(v: Vehicle) {
+  if (!v.driver) return "—";
+  return `${v.driver.firstName} ${v.driver.lastName}`.trim();
+}
+
+function gpsLabel(v: Vehicle) {
+  if (!v.gpsDevice) return "—";
+  return v.gpsDevice.imei;
+}
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
+}
+
+interface SortHeaderProps {
+  column: SortKey;
+  active: boolean;
+  onClick: (column: SortKey) => void;
+  children: React.ReactNode;
+}
+
+function SortHeader({ column, active, onClick, children }: SortHeaderProps) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(column)}
+      className={cn(
+        "inline-flex items-center gap-1.5 font-medium transition-colors hover:text-foreground",
+        active && "text-foreground"
+      )}
+      aria-label={`Sort by ${children}`}
+    >
+      {children}
+      <ArrowUpDown className="size-3.5 opacity-60" aria-hidden="true" />
+    </button>
+  );
+}
+
+export function VehiclesTable() {
+  const { can } = useAuth();
+  const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
+  const [servingAreas, setServingAreas] = React.useState<ServingArea[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [sortKey, setSortKey] = React.useState<SortKey>("plateNumber");
+  const [sortDir, setSortDir] = React.useState<SortDir>("asc");
+  const [page, setPage] = React.useState(0);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [dialogMode, setDialogMode] = React.useState<"create" | "edit">(
+    "create"
+  );
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(
+    null
+  );
+  const [deleteTarget, setDeleteTarget] = React.useState<Vehicle | null>(null);
+  const [activeTab, setActiveTab] = React.useState<"active" | "log">("active");
+  const [logs, setLogs] = React.useState<AuditLog[]>([]);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [statusToggling, setStatusToggling] = React.useState<string | null>(null);
+
+  const loadLogs = React.useCallback(async () => {
+    try {
+      const data = await api.auditLogs.list({ entityType: "vehicle_serving_area" });
+      setLogs(data);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const [vehicleList, areaList] = await Promise.all([
+        api.vehicles.list(),
+        api.servingAreas.list(),
+      ]);
+      setVehicles(vehicleList);
+      setServingAreas(areaList);
+      await loadLogs();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load vehicles"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [loadLogs]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [vehicleList, areaList] = await Promise.all([
+          api.vehicles.list(),
+          api.servingAreas.list(),
+        ]);
+        if (cancelled) return;
+        setVehicles(vehicleList);
+        setServingAreas(areaList);
+        await loadLogs();
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            err instanceof Error ? err.message : "Failed to load vehicles"
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadLogs]);
+
+  const canCreate = can("vehicles:create");
+  const canUpdate = can("vehicles:update");
+  const canDelete = can("vehicles:delete");
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const sorted = [...vehicles]
+      .filter(
+        (v) =>
+          !q ||
+          v.plateNumber.toLowerCase().includes(q) ||
+          vehicleLabel(v).toLowerCase().includes(q) ||
+          driverName(v).toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        let av: string | number;
+        let bv: string | number;
+        if (sortKey === "plateNumber") {
+          av = a.plateNumber.toLowerCase();
+          bv = b.plateNumber.toLowerCase();
+        } else if (sortKey === "make") {
+          av = vehicleLabel(a).toLowerCase();
+          bv = vehicleLabel(b).toLowerCase();
+        } else if (sortKey === "year") {
+          av = a.year ?? 0;
+          bv = b.year ?? 0;
+          return sortDir === "asc"
+            ? (av as number) - (bv as number)
+            : (bv as number) - (av as number);
+        } else if (sortKey === "status") {
+          av = a.status;
+          bv = b.status;
+        } else if (sortKey === "driver") {
+          av = driverName(a).toLowerCase();
+          bv = driverName(b).toLowerCase();
+        } else {
+          av = a.servingAreas.length;
+          bv = b.servingAreas.length;
+          return sortDir === "asc"
+            ? (av as number) - (bv as number)
+            : (bv as number) - (av as number);
+        }
+        const cmp = String(av).localeCompare(String(bv));
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    return sorted;
+  }, [vehicles, query, sortKey, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const rows = filtered.slice(
+    safePage * PAGE_SIZE,
+    safePage * PAGE_SIZE + PAGE_SIZE
+  );
+
+  const vehicleMap = React.useMemo(() => {
+    const map = new Map<string, Vehicle>();
+    for (const v of vehicles) map.set(v.id, v);
+    return map;
+  }, [vehicles]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const allVisibleSelected =
+    rows.length > 0 && rows.every((r) => selected.has(r.id));
+
+  const toggleAll = (checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      rows.forEach((r) => (checked ? next.add(r.id) : next.delete(r.id)));
+      return next;
+    });
+  };
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleCreate = () => {
+    setEditingVehicle(null);
+    setDialogMode("create");
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setDialogMode("edit");
+    setDialogOpen(true);
+  };
+
+  const handleSave = async (values: VehicleFormValues) => {
+    setSaving(true);
+    try {
+      if (dialogMode === "edit" && editingVehicle) {
+        await api.vehicles.update(editingVehicle.id, {
+          plateNumber: values.plateNumber,
+          make: values.make,
+          model: values.model,
+          year: values.year ? Number(values.year) : undefined,
+          status: values.status,
+          notes: values.notes || undefined,
+        });
+        await api.vehicles.assignAreas(editingVehicle.id, values.servingAreaIds);
+        toast.success("Vehicle updated");
+      } else {
+        await api.vehicles.create({
+          plateNumber: values.plateNumber,
+          make: values.make,
+          model: values.model,
+          year: values.year ? Number(values.year) : undefined,
+          status: values.status,
+          notes: values.notes || undefined,
+          servingAreaIds: values.servingAreaIds,
+        });
+        toast.success("Vehicle created");
+      }
+      setDialogOpen(false);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save vehicle"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (vehicle: Vehicle) => {
+    try {
+      await api.vehicles.remove(vehicle.id);
+      toast.success("Vehicle deleted");
+      setDeleteTarget(null);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(vehicle.id);
+        return next;
+      });
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete vehicle"
+      );
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setSaving(true);
+    try {
+      for (const id of selected) {
+        await api.vehicles.remove(id);
+      }
+      toast.success(`${selected.size} vehicle(s) deleted`);
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete vehicles"
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (vehicle: Vehicle, status: Vehicle["status"]) => {
+    setStatusToggling(vehicle.id);
+    try {
+      await api.vehicles.update(vehicle.id, { status });
+      setVehicles((prev) =>
+        prev.map((v) => (v.id === vehicle.id ? { ...v, status } : v))
+      );
+      toast.success(`Status changed to ${status}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setStatusToggling(null);
+    }
+  };
+
+const handleExport = async () => {
+  try {
+    await api.vehicles.export();
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Export failed");
+  }
+};
+
+const handleSample = async () => {
+  try {
+    await api.vehicles.sample();
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : "Download failed");
+  }
+};
+
+  const parseExcelFile = async (file: File): Promise<Record<string, unknown>[]> => {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet);
+  };
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Vehicles</CardTitle>
+          <CardDescription>
+            {vehicles.length} total vehicles · manage fleet and service areas.
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          {can("vehicles:read") && (
+            <>
+              <Button variant="outline" size="sm" onClick={handleSample}>
+                <FileSpreadsheet className="mr-2 size-4" aria-hidden="true" />
+                Sample
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="mr-2 size-4" aria-hidden="true" />
+                Export
+              </Button>
+            </>
+          )}
+          {can("vehicles:create") && (
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 size-4" aria-hidden="true" />
+              Import
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 size-4" aria-hidden="true" />
+              Add New
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "log")}>
+          <TabsList>
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="log">Log</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="active" className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full max-w-xs">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  type="search"
+                  placeholder="Search plate, make, or driver…"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(0);
+                  }}
+                  className="h-9 rounded-lg pl-9"
+                  aria-label="Search vehicles"
+                />
+              </div>
+
+              {canDelete && selected.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="h-7 px-2.5">
+                    {selected.size} selected
+                  </Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-9"
+                    onClick={handleBulkDelete}
+                    disabled={saving}
+                  >
+                    <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                    Delete
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[48px]">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all rows"
+                      />
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader
+                        column="plateNumber"
+                        active={sortKey === "plateNumber"}
+                        onClick={toggleSort}
+                      >
+                        Plate
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead>
+                      <SortHeader
+                        column="make"
+                        active={sortKey === "make"}
+                        onClick={toggleSort}
+                      >
+                        Make / Model
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      <SortHeader
+                        column="year"
+                        active={sortKey === "year"}
+                        onClick={toggleSort}
+                      >
+                        Year
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead className="hidden lg:table-cell">
+                      <SortHeader
+                        column="status"
+                        active={sortKey === "status"}
+                        onClick={toggleSort}
+                      >
+                        Status
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      <SortHeader
+                        column="driver"
+                        active={sortKey === "driver"}
+                        onClick={toggleSort}
+                      >
+                        Driver
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead className="hidden xl:table-cell">
+                      GPS Device
+                    </TableHead>
+                    <TableHead className="hidden lg:table-cell">
+                      <SortHeader
+                        column="areas"
+                        active={sortKey === "areas"}
+                        onClick={toggleSort}
+                      >
+                        Areas
+                      </SortHeader>
+                    </TableHead>
+                    <TableHead className="w-[50px] text-right">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="h-24 text-center">
+                        <Loader2
+                          className="mx-auto size-5 animate-spin text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && rows.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="h-24 text-center text-sm text-muted-foreground"
+                      >
+                        No vehicles match your search.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rows.map((vehicle) => (
+                    <TableRow
+                      key={vehicle.id}
+                      className={cn(selected.has(vehicle.id) && "bg-accent/40")}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.has(vehicle.id)}
+                          onCheckedChange={(checked) =>
+                            toggleOne(vehicle.id, checked === true)
+                          }
+                          aria-label={`Select ${vehicle.plateNumber}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {vehicle.plateNumber}
+                      </TableCell>
+                      <TableCell>{vehicleLabel(vehicle)}</TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {vehicle.year ?? "—"}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {canUpdate ? (
+                          <Select
+                            value={vehicle.status}
+                            onValueChange={(v) =>
+                              handleStatusChange(vehicle, v as Vehicle["status"])
+                            }
+                            disabled={statusToggling === vehicle.id}
+                          >
+                            <SelectTrigger
+                              className={cn(
+                                "h-7 w-[110px] text-xs capitalize",
+                                vehicle.status === "active" && "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
+                                vehicle.status === "inactive" && "border-muted bg-muted/50 text-muted-foreground",
+                                vehicle.status === "maintenance" && "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                              )}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                              <SelectItem value="maintenance">Maintenance</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge
+                            variant={STATUS_VARIANTS[vehicle.status]}
+                            className="capitalize"
+                          >
+                            {vehicle.status}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {driverName(vehicle)}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground xl:table-cell">
+                        {gpsLabel(vehicle)}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground lg:table-cell">
+                        {vehicle.servingAreas.length}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {(canUpdate || canDelete) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground"
+                                aria-label={`Actions for ${vehicle.plateNumber}`}
+                              >
+                                <MoreHorizontal
+                                  className="size-4"
+                                  aria-hidden="true"
+                                />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {canUpdate && (
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => handleEdit(vehicle)}
+                                >
+                                  <Pencil
+                                    className="mr-2 size-4"
+                                    aria-hidden="true"
+                                  />
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <DropdownMenuItem
+                                  className="cursor-pointer text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteTarget(vehicle)}
+                                >
+                                  <Trash2
+                                    className="mr-2 size-4"
+                                    aria-hidden="true"
+                                  />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {rows.length} of {filtered.length} results
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                </Button>
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  {safePage + 1} / {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  disabled={safePage === pageCount - 1}
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="log">
+            <div className="overflow-x-auto rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Time</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Area</TableHead>
+                    <TableHead>Actor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                        No log entries yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {logs.map((log) => {
+                    const vehicle = vehicleMap.get(log.entityId);
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
+                          {relativeTime(log.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={log.action === "assigned" ? "success" : "destructive"} className="capitalize">
+                            {log.action}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {vehicle ? vehicle.plateNumber : log.entityId}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {log.relatedName}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {log.actorEmail ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+
+      {/* Add / Edit modal */}
+      {dialogOpen && (
+        <VehicleFormDialog
+          vehicle={dialogMode === "edit" ? editingVehicle : null}
+          servingAreas={servingAreas}
+          pending={saving}
+          onClose={() => {
+            if (!saving) setDialogOpen(false);
+          }}
+          onSave={handleSave}
+        />
+      )}
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              <span className="font-semibold">
+                {deleteTarget ? deleteTarget.plateNumber : ""}
+              </span>{" "}
+              and all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Import dialog */}
+      {can("vehicles:create") && (
+        <ImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          title="Vehicles"
+          onImported={load}
+          parseExcelFile={parseExcelFile}
+          validateImport={api.vehicles.validateImport}
+          confirmImport={api.vehicles.confirmImport}
+        />
+      )}
+    </Card>
+  );
+}

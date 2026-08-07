@@ -1,0 +1,1 @@
+import * as L from 'leaflet'; declare module 'leaflet-polylinedecorator' { export function polylineDecorator(path: L.Polyline | L.LatLngExpression[], options?: any): L.LayerGroup; export default polylineDecorator; }
