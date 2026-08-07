@@ -1,0 +1,13 @@
+{
+  "name": "e101-tcp",
+  "version": "1.0.0",
+  "description": "E101 GPS TCP Gateway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.4.1"
+  }
+}

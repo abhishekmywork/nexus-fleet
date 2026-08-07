@@ -85,6 +85,22 @@ services:
     depends_on:
       - backend
 
+  tcp-server:
+    build:
+      context: ./tcp-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "20000:20000"
+    environment:
+      TCP_PORT: 20000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+    depends_on:
+      redis:
+        condition: service_healthy
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped
