@@ -81,8 +81,8 @@ export function LoginForm() {
         toast.info("Two-factor verification required");
       } else {
         toast.success("Signed in successfully");
-        router.replace("/");
-        router.refresh();
+        router.replace("/live-map");
+      router.refresh();
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -98,7 +98,7 @@ export function LoginForm() {
     try {
       await completeTwoFactor(challenge.twoFactorToken, code);
       toast.success("Signed in successfully");
-      router.replace("/");
+      router.replace("/live-map");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Invalid verification code");
