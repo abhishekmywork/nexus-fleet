@@ -12,13 +12,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <Link
         href="/login"
         className="flex items-center gap-2.5"
-        aria-label="Nexus Admin home"
+        aria-label="MST-VTS home"
       >
         <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
           <Sparkles className="size-6" aria-hidden="true" />
         </span>
         <span className="text-2xl font-semibold tracking-tight">
-          Nexus<span className="text-primary">Admin</span>
+          MST<span className="text-primary">-VTS</span>
         </span>
       </Link>
 

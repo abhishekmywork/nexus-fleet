@@ -41,7 +41,7 @@ export function SidebarNav({ collapsed, onNavigate, onClose }: SidebarNavProps) 
     ),
   })).filter((section) => section.items.length > 0);
 
-  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "Nexus User";
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : "MST-VTS User";
   const initials = user
     ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
     : "NX";
@@ -63,14 +63,14 @@ export function SidebarNav({ collapsed, onNavigate, onClose }: SidebarNavProps) 
             "flex items-center gap-2.5 overflow-hidden",
             collapsed && "justify-center"
           )}
-          aria-label="Nexus Admin home"
+          aria-label="MST-VTS home"
         >
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
             <Sparkles className="size-5" aria-hidden="true" />
           </span>
           {!collapsed && (
             <span className="truncate text-lg font-semibold tracking-tight">
-              Nexus<span className="text-primary">Admin</span>
+              MST<span className="text-primary">-VTS</span>
             </span>
           )}
         </Link>

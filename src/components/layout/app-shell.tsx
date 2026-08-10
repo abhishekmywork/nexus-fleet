@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
             <footer className="border-t px-4 py-4 sm:px-6 lg:px-8">
               <p className="text-center text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Nexus Admin. Built with Next.js,
+                © {new Date().getFullYear()} MST-VTS. Built with Next.js,
                 Tailwind CSS and shadcn/ui.
               </p>
             </footer>

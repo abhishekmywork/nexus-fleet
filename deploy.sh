@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== Nexus Fleet Deployment ==="
+echo "=== MST-VTS Deployment ==="
 
 # Check if .env exists
 if [ ! -f .env ]; then

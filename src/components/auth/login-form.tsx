@@ -322,7 +322,7 @@ export function LoginForm() {
               </p>
             ) : !tenant ? (
               <p className="text-sm text-muted-foreground">
-                New to Nexus?{" "}
+                New to MST-VTS?{" "}
                 <button
                   type="button"
                   onClick={() => setMode("register")}

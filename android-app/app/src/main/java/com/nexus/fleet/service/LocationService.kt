@@ -71,7 +71,7 @@ class LocationService : Service() {
 
         return NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Nexus Fleet")
+            .setContentTitle("MST-VTS")
             .setContentText("Tracking your location")
             .setContentIntent(pending)
             .setOngoing(true)

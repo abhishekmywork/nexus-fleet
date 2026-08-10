@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nexus Admin — Dashboard",
-    template: "%s | Nexus Admin",
+    default: "MST-VTS — Dashboard",
+    template: "%s | MST-VTS",
   },
   description:
     "A modern, responsive admin panel built with Next.js, Tailwind CSS and shadcn/ui.",

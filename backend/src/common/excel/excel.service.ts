@@ -21,7 +21,7 @@ export class ExcelService {
     sheetName = 'Sheet1',
   ): Promise<Buffer> {
     const workbook = new Workbook();
-    workbook.creator = 'Nexus Admin';
+    workbook.creator = 'MST-VTS';
     workbook.created = new Date();
 
     const sheet = workbook.addWorksheet(sheetName);
@@ -53,7 +53,7 @@ export class ExcelService {
 
   async generateSample(columns: ExcelColumn[]): Promise<Buffer> {
     const workbook = new Workbook();
-    workbook.creator = 'Nexus Admin';
+    workbook.creator = 'MST-VTS';
     workbook.created = new Date();
 
     const sheet = workbook.addWorksheet('Sample');
