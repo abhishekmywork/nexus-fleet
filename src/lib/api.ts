@@ -41,6 +41,17 @@ const USER_KEY = "nexus_user";
 
 export const UNAUTHORIZED_EVENT = "nexus:unauthorized";
 
+/** Extract subdomain from browser hostname for tenant resolution. */
+function getSubdomainSlug(): string | null {
+  if (typeof window === "undefined") return null;
+  const hostname = window.location.hostname;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
+  if (hostname === "localhost") return null;
+  const parts = hostname.split(".");
+  if (parts.length < 3) return null;
+  return parts[0];
+}
+
 /** Storage helpers — guarded so they can run during SSR safely. */
 
 function canUseStorage() {
@@ -117,6 +128,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: Record<string, string> = {};
   const isFormData = body instanceof FormData;
   if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
+
+  // Attach subdomain slug header for tenant resolution
+  const tenantSlug = getSubdomainSlug();
+  if (tenantSlug) headers["X-Tenant-Slug"] = tenantSlug;
 
   const send = async (accessToken?: string | null) => {
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;

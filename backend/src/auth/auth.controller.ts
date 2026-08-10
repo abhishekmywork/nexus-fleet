@@ -6,7 +6,9 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
@@ -41,8 +43,9 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    const tenant = (req as any).tenant;
+    return this.authService.login(dto, tenant?.id ?? null);
   }
 
   @Public()

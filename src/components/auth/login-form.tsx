@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, LogIn, Mail, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
+import { Loader2, Lock, LogIn, Mail, ShieldCheck, Sparkles, UserPlus, Building2 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useTenant } from "@/components/tenant/tenant-provider";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ type Mode = "signin" | "register" | "two-factor";
 export function LoginForm() {
   const router = useRouter();
   const { login, completeTwoFactor, logout } = useAuth();
+  const { tenant, slug, resolved, error: tenantError } = useTenant();
 
   const [mode, setMode] = React.useState<Mode>("signin");
   const [pending, setPending] = React.useState(false);
@@ -105,6 +107,36 @@ export function LoginForm() {
     }
   };
 
+  // Show loading state while resolving tenant
+  if (!resolved) {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader className="items-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <CardTitle className="pt-2 text-muted-foreground">Loading...</CardTitle>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  // Show error if subdomain doesn't match any tenant
+  if (slug && tenantError) {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader className="items-center">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <Building2 className="size-5" aria-hidden="true" />
+          </div>
+          <CardTitle className="pt-2">Organization not found</CardTitle>
+          <CardDescription>
+            The subdomain <span className="font-semibold">{slug}</span> does not match
+            any active organization on this platform.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Card className="shadow-sm">
       {mode === "two-factor" && challenge ? (
@@ -178,15 +210,21 @@ export function LoginForm() {
         <>
           <CardHeader>
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Sparkles className="size-5" aria-hidden="true" />
+              {tenant ? <Building2 className="size-5" aria-hidden="true" /> : <Sparkles className="size-5" aria-hidden="true" />}
             </div>
             <CardTitle className="pt-2">
-              {mode === "register" ? "Create your account" : "Welcome back"}
+              {mode === "register"
+                ? "Create your account"
+                : tenant
+                  ? `Sign in to ${tenant.name}`
+                  : "Welcome back"}
             </CardTitle>
             <CardDescription>
               {mode === "register"
                 ? "Sign up to start managing your workspace."
-                : "Sign in to access your dashboard."}
+                : tenant
+                  ? `Access the ${tenant.name} dashboard.`
+                  : "Sign in to access your dashboard."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -282,7 +320,7 @@ export function LoginForm() {
                   Sign in
                 </button>
               </p>
-            ) : (
+            ) : !tenant ? (
               <p className="text-sm text-muted-foreground">
                 New to Nexus?{" "}
                 <button
@@ -293,7 +331,7 @@ export function LoginForm() {
                   Create an account
                 </button>
               </p>
-            )}
+            ) : null}
           </CardFooter>
         </>
       )}

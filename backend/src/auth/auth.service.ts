@@ -64,7 +64,7 @@ export class AuthService {
     return { user: mapUser(saved) };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, tenantId?: string | null) {
     const email = dto.email.toLowerCase();
     const user = await this.users
       .createQueryBuilder('user')
@@ -78,6 +78,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
     if (!user.isActive) throw new UnauthorizedException('Account is disabled');
+
+    // When accessed via subdomain, enforce tenant scoping
+    if (tenantId && user.tenantId !== tenantId && !user.isSuperUser) {
+      throw new UnauthorizedException('Account not found in this organization');
+    }
 
     // Second step: challenge with an OTP if 2FA is enabled.
     if (user.twoFactorEnabled) {

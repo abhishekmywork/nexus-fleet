@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { configuration, type AppConfig } from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { TenantResolverMiddleware } from './common/middleware/tenant-resolver.middleware';
 import { SeedService } from './database/seeds/seed.service';
 import { User } from './users/user.entity';
 import { Role } from './roles/role.entity';
@@ -111,4 +112,10 @@ import { MobileModule } from './mobile/mobile.module';
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(TenantResolverMiddleware)
+      .forRoutes('*');
+  }
+}

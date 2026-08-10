@@ -69,6 +69,14 @@ export class TenantsService {
     return this.findOne(id);
   }
 
+  async findBySlug(slug: string) {
+    const tenant = await this.tenants.findOne({
+      where: { slug, status: 'active' as const },
+    });
+    if (!tenant) return null;
+    return { id: tenant.id, name: tenant.name, slug: tenant.slug };
+  }
+
   async remove(id: string): Promise<void> {
     const tenant = await this.tenants.findOne({
       where: { id },

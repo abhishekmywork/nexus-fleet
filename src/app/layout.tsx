@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Inter, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { TenantProvider } from "@/components/tenant/tenant-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -49,10 +50,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-            <Toaster richColors position="top-right" />
-          </AuthProvider>
+          <TenantProvider>
+            <AuthProvider>
+              {children}
+              <Toaster richColors position="top-right" />
+            </AuthProvider>
+          </TenantProvider>
         </ThemeProvider>
       </body>
     </html>
