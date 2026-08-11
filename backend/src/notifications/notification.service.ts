@@ -167,8 +167,11 @@ export class NotificationService {
     const config = await this.getSmtpConfig();
     if (!config.host) return;
 
-    const subject = `[Fleet Alert] ${EVENT_LABELS[eventType] ?? eventType}`;
-    const html = this.buildEmailHtml(event, plateNumber);
+    const contact = await this.globalSettings.getContactDetails();
+    const physicalAddress = [contact.name, contact.phone, contact.email].filter(Boolean).join(' | ') || 'MST-VTS, Ranaghat, Nadia, West Bengal 741101, India';
+
+    const subject = `MST-VTS Alert: ${EVENT_LABELS[eventType] ?? eventType} - ${plateNumber}`;
+    const html = this.buildEmailHtml(event, plateNumber, physicalAddress);
 
     const log = this.logsRepo.create({
       tenantId: setting.tenantId,
@@ -182,7 +185,9 @@ export class NotificationService {
     });
 
     try {
-      await this.emailService.send(recipients, subject, html, config);
+      await this.emailService.send(recipients, subject, html, config, {
+        physicalAddress,
+      });
     } catch (err) {
       log.status = 'failed';
       log.errorMessage = err instanceof Error ? err.message : String(err);
@@ -237,7 +242,7 @@ export class NotificationService {
 
   // ─── TEMPLATES ─────────────────────────────────────────
 
-  private buildEmailHtml(event: Event, plateNumber: string): string {
+  private buildEmailHtml(event: Event, plateNumber: string, physicalAddress?: string): string {
     const eventType = event.eventType as EventType;
     const label = EVENT_LABELS[eventType] ?? eventType;
     const time = event.startedAt
@@ -269,24 +274,43 @@ export class NotificationService {
       extraRows += `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Geofence</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${eventType === 'GEOFENCE_IN' ? 'Entered' : 'Exited'}</td></tr>`;
     }
 
-    return `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-        <div style="background:${this.getEventColor(eventType)};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0;">
-          <h2 style="margin:0;font-size:18px;">${label}</h2>
-        </div>
-        <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Vehicle</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${vehiclePlate}</td></tr>
-            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Event</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${label}</td></tr>
-            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Time</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${time}</td></tr>
-            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Speed</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${speedInfo}</td></tr>
-            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Location</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${location}</td></tr>
+    return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+        <tr><td style="background-color:${this.getEventColor(eventType)};color:#ffffff;padding:20px 28px;border-radius:8px 8px 0 0;">
+          <h1 style="margin:0;font-size:20px;font-weight:600;">${label}</h1>
+          <p style="margin:4px 0 0;font-size:13px;opacity:0.9;">MST-VTS Fleet Monitoring System</p>
+        </td></tr>
+        <tr><td style="background-color:#ffffff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:14px;">Vehicle</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;font-size:14px;">${vehiclePlate}</td></tr>
+            <tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:14px;">Event</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;font-size:14px;">${label}</td></tr>
+            <tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:14px;">Time</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;font-size:14px;">${time}</td></tr>
+            <tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:14px;">Speed</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;font-size:14px;">${speedInfo}</td></tr>
+            <tr><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;color:#6b7280;font-size:14px;">Location</td><td style="padding:10px 14px;border-bottom:1px solid #f0f0f0;font-weight:600;font-size:14px;">${location}</td></tr>
             ${extraRows}
           </table>
-        </div>
-        <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px;">MST-VTS Fleet Monitoring</p>
-      </div>
-    `;
+        </td></tr>
+        <tr><td style="padding:20px 0;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">This is an automated alert from MST-VTS Fleet Monitoring.</p>
+        </td></tr>
+        <tr><td style="border-top:1px solid #e5e7eb;padding-top:16px;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.5;">
+            ${physicalAddress || 'MST-VTS Fleet Monitoring'}<br>
+            <a href="mailto:support@mstechind.com?subject=Unsubscribe" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a>
+            &nbsp;|&nbsp;
+            <a href="https://mstechind.com/settings" style="color:#6b7280;text-decoration:underline;">Notification Preferences</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
   }
 
   private getEventColor(eventType: EventType): string {
@@ -336,9 +360,35 @@ export class NotificationService {
     const config = await this.getSmtpConfig();
     if (!config.host) throw new NotFoundException('SMTP not configured');
 
-    const html =
-      '<h2>Email notifications are working!</h2><p>This is a test message from your fleet monitoring system.</p>';
-    await this.emailService.send([emailAddress], '[Test] Fleet Notification', html, config);
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+        <tr><td style="background-color:#2563eb;color:#ffffff;padding:20px 28px;border-radius:8px 8px 0 0;">
+          <h1 style="margin:0;font-size:20px;font-weight:600;">Test Notification</h1>
+          <p style="margin:4px 0 0;font-size:13px;opacity:0.9;">MST-VTS Fleet Monitoring System</p>
+        </td></tr>
+        <tr><td style="background-color:#ffffff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+          <p style="margin:0 0 16px;font-size:15px;color:#374151;">Email notifications are working correctly!</p>
+          <p style="margin:0;font-size:14px;color:#6b7280;">This is a test message from your fleet monitoring system. If you received this email, your SMTP configuration is set up properly.</p>
+        </td></tr>
+        <tr><td style="border-top:1px solid #e5e7eb;padding-top:16px;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.5;">
+            MST-VTS Fleet Monitoring &mdash; Ranaghat, Nadia, West Bengal 741101, India<br>
+            <a href="mailto:support@mstechind.com?subject=Unsubscribe" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a>
+            &nbsp;|&nbsp;
+            <a href="https://mstechind.com/settings" style="color:#6b7280;text-decoration:underline;">Notification Preferences</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await this.emailService.send([emailAddress], 'Test: MST-VTS Email Notification', html, config);
 
     const log = this.logsRepo.create({
       tenantId,

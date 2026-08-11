@@ -79,6 +79,7 @@ export class EmailService {
     subject: string,
     html: string,
     config: SmtpConfig,
+    options?: { text?: string; listUnsubscribe?: string; physicalAddress?: string },
   ): Promise<void> {
     if (to.length === 0) return;
 
@@ -98,12 +99,38 @@ export class EmailService {
       logger: true,
     } as any);
 
-    await transporter.sendMail({
+    const messageId = `<${Date.now()}-${Math.random().toString(36).substring(2)}@${config.fromEmail.split('@')[1]}>`;
+
+    const mailOptions: Record<string, any> = {
       from: `"${config.fromName}" <${config.fromEmail}>`,
       to: to.join(', '),
       subject,
       html,
-    });
+      messageId,
+      replyTo: config.fromEmail,
+      headers: {
+        'X-Mailer': 'MST-VTS Notification System',
+        'X-Priority': '3',
+        'Precedence': 'bulk',
+      },
+    };
+
+    if (options?.text) {
+      mailOptions.text = options.text;
+    } else {
+      mailOptions.text = this.htmlToPlainText(html);
+    }
+
+    if (options?.listUnsubscribe || to.length > 1) {
+      const unsubEmail = config.fromEmail;
+      mailOptions.list = {
+        unsubscribe: [
+          { url: `mailto:${unsubEmail}?subject=unsubscribe`, comment: 'Unsubscribe' },
+        ],
+      };
+    }
+
+    await transporter.sendMail(mailOptions);
   }
 
   async testConnection(config: SmtpConfig): Promise<boolean> {
@@ -126,5 +153,24 @@ export class EmailService {
       this.logger.error('SMTP connection test failed', err);
       return false;
     }
+  }
+
+  private htmlToPlainText(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/tr>/gi, '\n')
+      .replace(/<\/td>/gi, ' | ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#\d+;/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 }
