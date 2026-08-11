@@ -300,26 +300,35 @@ function createVehicleIcon(plateNumber: string | null, movement: string | null):
   const color =
     movement === "MOVING" ? "#22c55e" :
     movement === "STOPPED" ? "#f97316" :
-    "#94a3b8";
+    "#64748b";
+  const glow =
+    movement === "MOVING" ? "rgba(34,197,94,0.5)" :
+    movement === "STOPPED" ? "rgba(249,115,22,0.4)" :
+    "rgba(100,116,139,0.3)";
   return L.divIcon({
     className: "vehicle-marker",
     html: `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="${color}" stroke="#fff" stroke-width="1.5">
-          <path d="M5 17h14v-5l-2-6H7L5 12v5z"/>
-          <circle cx="7.5" cy="17" r="1" fill="#fff"/>
-          <circle cx="16.5" cy="17" r="1" fill="#fff"/>
-        </svg>
+        <div style="
+          width:12px;height:12px;border-radius:50%;
+          background:${color};border:2px solid #fff;
+          box-shadow:0 0 0 2px ${color}, 0 0 8px ${glow};
+        "></div>
+        <div style="
+          width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;
+          box-shadow:0 0 4px ${glow};
+        "></div>
         ${plateNumber ? `<span style="
-          position:absolute;top:-18px;left:50%;transform:translateX(-50%);
-          background:#171717;color:#fff;font-size:9px;font-weight:600;
-          padding:1px 4px;border-radius:3px;white-space:nowrap;
-          letter-spacing:0.3px;pointer-events:none;
+          position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+          background:${color};color:#fff;font-size:8px;font-weight:700;
+          padding:1px 5px;border-radius:3px;white-space:nowrap;
+          letter-spacing:0.4px;pointer-events:none;
+          box-shadow:0 1px 4px rgba(0,0,0,.3);
         ">${plateNumber}</span>` : ""}
       </div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [14, 16],
+    iconAnchor: [7, 16],
   });
 }
 
