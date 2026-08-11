@@ -17,7 +17,6 @@ function PublicLiveMap({ positions, tenantName }: { positions: LivePosition[]; t
   React.useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    // Dynamic import of Leaflet (client-side only)
     Promise.all([
       import("leaflet"),
       import("leaflet/dist/leaflet.css"),
@@ -43,7 +42,6 @@ function PublicLiveMap({ positions, tenantName }: { positions: LivePosition[]; t
     import("leaflet").then((L) => {
       const currentIds = new Set(positions.map((p) => p.deviceId));
 
-      // Remove stale markers
       for (const [id, marker] of markersRef.current) {
         if (!currentIds.has(id)) {
           map.removeLayer(marker);
@@ -125,19 +123,17 @@ function PublicLiveMap({ positions, tenantName }: { positions: LivePosition[]; t
   );
 }
 
-export default function PublicLiveMapPage() {
+export default function PublicMapPage() {
   const { tenant, slug, resolved, error } = useTenant();
   const [positions, setPositions] = React.useState<LivePosition[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [accessDenied, setAccessDenied] = React.useState(false);
 
-  // Check if public live map is enabled and fetch positions
   React.useEffect(() => {
     if (!resolved || !slug) return;
 
     async function load() {
       try {
-        // Check if public live map is enabled for this tenant
         const statusRes = await fetch(
           `${API_BASE.replace(/\/api\/?$/, "")}/api/tenants/public/${slug}/public-live-map-status`
         );
@@ -149,7 +145,6 @@ export default function PublicLiveMapPage() {
           return;
         }
 
-        // Fetch public positions
         const data = await api.liveMap.publicPositions();
         setPositions(data);
       } catch {
@@ -161,7 +156,6 @@ export default function PublicLiveMapPage() {
     load();
   }, [resolved, slug]);
 
-  // Poll for updates every 10 seconds
   React.useEffect(() => {
     if (accessDenied || !slug) return;
     const interval = setInterval(async () => {
