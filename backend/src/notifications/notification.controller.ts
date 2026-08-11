@@ -18,6 +18,58 @@ import {
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
+  // ─── GLOBAL SMTP CONFIG (super admin) ───────────────
+
+  @Get('smtp')
+  @Permissions('notifications:read')
+  async getSmtpConfig() {
+    const config = await this.notificationService.getSmtpConfig();
+    return {
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      username: config.username,
+      password: config.password ? '••••••••' : '',
+      fromEmail: config.fromEmail,
+      fromName: config.fromName,
+    };
+  }
+
+  @Put('smtp')
+  @Permissions('notifications:update')
+  async saveSmtpConfig(
+    @Body() dto: { host: string; port: number; secure: boolean; username: string; password: string; fromEmail: string; fromName: string },
+  ) {
+    await this.notificationService.saveSmtpConfig(
+      dto.host, dto.port, dto.secure, dto.username, dto.password, dto.fromEmail, dto.fromName,
+    );
+    return { success: true };
+  }
+
+  // ─── GLOBAL SMS CONFIG (super admin) ───────────────
+
+  @Get('sms-config')
+  @Permissions('notifications:read')
+  async getSmsConfig() {
+    const config = await this.notificationService.getSmsConfig();
+    return {
+      apiKey: config.apiKey ? '••••••••' : '',
+      senderId: config.senderId,
+      type: config.type,
+    };
+  }
+
+  @Put('sms-config')
+  @Permissions('notifications:update')
+  async saveSmsConfig(
+    @Body() dto: { apiKey: string; senderId: string; type: string },
+  ) {
+    await this.notificationService.saveSmsConfig(dto.apiKey, dto.senderId, dto.type);
+    return { success: true };
+  }
+
+  // ─── PER-TENANT NOTIFICATION SETTINGS ─────────────
+
   @Get('settings')
   @Permissions('notifications:read')
   async getSettings(@CurrentUser() user: AuthenticatedUser) {
@@ -27,19 +79,9 @@ export class NotificationController {
         id: null,
         tenantId: '',
         emailEnabled: false,
-        smtpHost: '',
-        smtpPort: 587,
-        smtpSecure: false,
-        smtpUsername: '',
-        smtpPassword: '',
-        fromEmail: '',
-        fromName: '',
         emailGlobalRecipients: [],
         emailEventOverrides: {},
         smsEnabled: false,
-        smsApiKey: '',
-        smsSenderId: '',
-        smsType: 'transactional',
         smsGlobalRecipients: [],
         smsEventOverrides: {},
       };
@@ -55,7 +97,7 @@ export class NotificationController {
   ) {
     const tenantId: string = user.tenantId ?? '';
     if (!tenantId) {
-      return { message: 'Super admin must select a tenant to configure notifications' };
+      return { message: 'Super admin must select a tenant to configure notification preferences' };
     }
     return this.notificationService.saveSettings(tenantId, dto);
   }

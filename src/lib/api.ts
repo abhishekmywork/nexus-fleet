@@ -594,6 +594,18 @@ export const api = {
         "/notifications/settings",
         { method: "PUT", body: dto }
       ),
+    getSmtpConfig: () =>
+      request<{ host: string; port: number; secure: boolean; username: string; password: string; fromEmail: string; fromName: string }>(
+        "/notifications/smtp"
+      ),
+    saveSmtpConfig: (dto: { host: string; port: number; secure: boolean; username: string; password: string; fromEmail: string; fromName: string }) =>
+      request<{ success: boolean }>("/notifications/smtp", { method: "PUT", body: dto }),
+    getSmsConfig: () =>
+      request<{ apiKey: string; senderId: string; type: string }>(
+        "/notifications/sms-config"
+      ),
+    saveSmsConfig: (dto: { apiKey: string; senderId: string; type: string }) =>
+      request<{ success: boolean }>("/notifications/sms-config", { method: "PUT", body: dto }),
     testEmail: (email: string) =>
       request<{ success: boolean }>("/notifications/test/email", {
         method: "POST",

@@ -14,6 +14,16 @@ export const DEFAULT_GLOBAL_SETTINGS = [
   { key: 'contact.name', value: 'MST-VTS Support', category: 'contact', description: 'Contact person or department name' },
   { key: 'contact.phone', value: '', category: 'contact', description: 'Contact phone number' },
   { key: 'contact.email', value: '', category: 'contact', description: 'Contact email address' },
+  { key: 'smtp.host', value: '', category: 'smtp', description: 'SMTP server host' },
+  { key: 'smtp.port', value: '587', category: 'smtp', description: 'SMTP server port' },
+  { key: 'smtp.secure', value: 'false', category: 'smtp', description: 'Use TLS (true/false)' },
+  { key: 'smtp.username', value: '', category: 'smtp', description: 'SMTP username' },
+  { key: 'smtp.password', value: '', category: 'smtp', description: 'SMTP password (encrypted)' },
+  { key: 'smtp.fromEmail', value: '', category: 'smtp', description: 'Sender email address' },
+  { key: 'smtp.fromName', value: 'MST-VTS', category: 'smtp', description: 'Sender display name' },
+  { key: 'sms.apiKey', value: '', category: 'sms', description: 'SMS gateway API key (encrypted)' },
+  { key: 'sms.senderId', value: '', category: 'sms', description: 'SMS sender ID' },
+  { key: 'sms.type', value: 'transactional', category: 'sms', description: 'SMS type (transactional/promotional)' },
 ];
 
 @Injectable()

@@ -5,6 +5,7 @@ import { NotificationSetting } from './notification-setting.entity';
 import { NotificationLog } from './notification-log.entity';
 import { EmailService, SmtpConfig } from './email.service';
 import { SmsService, SmsConfig } from './sms.service';
+import { GlobalSettingsService } from '../settings/global-settings.service';
 import { Event, EventType } from '../events/event.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 
@@ -27,28 +28,12 @@ const EVENT_LABELS: Record<EventType, string> = {
 
 export interface SaveNotificationSettingsDto {
   emailEnabled?: boolean;
-  smtpHost?: string;
-  smtpPort?: number;
-  smtpSecure?: boolean;
-  smtpUsername?: string;
-  smtpPassword?: string;
-  fromEmail?: string;
-  fromName?: string;
   emailGlobalRecipients?: string[];
-  emailEventOverrides?: Record<
-    string,
-    { enabled: boolean; recipients: string[] }
-  >;
+  emailEventOverrides?: Record<string, { enabled: boolean; recipients: string[] }>;
 
   smsEnabled?: boolean;
-  smsApiKey?: string;
-  smsSenderId?: string;
-  smsType?: string;
   smsGlobalRecipients?: string[];
-  smsEventOverrides?: Record<
-    string,
-    { enabled: boolean; recipients: string[] }
-  >;
+  smsEventOverrides?: Record<string, { enabled: boolean; recipients: string[] }>;
 }
 
 @Injectable()
@@ -64,6 +49,7 @@ export class NotificationService {
     private readonly devicesRepo: Repository<GPSDevice>,
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
+    private readonly globalSettings: GlobalSettingsService,
   ) {}
 
   // ─── SETTINGS CRUD ─────────────────────────────────────
@@ -82,16 +68,52 @@ export class NotificationService {
       setting = this.settingsRepo.create({ tenantId });
     }
 
-    // Only encrypt passwords that are actually changing (not already encrypted from DB)
-    if (dto.smtpPassword !== undefined && dto.smtpPassword !== setting.smtpPassword) {
-      dto.smtpPassword = this.emailService.encrypt(dto.smtpPassword);
-    }
-    if (dto.smsApiKey !== undefined && dto.smsApiKey !== setting.smsApiKey) {
-      dto.smsApiKey = this.emailService.encrypt(dto.smsApiKey);
-    }
-
     Object.assign(setting, dto);
     return this.settingsRepo.save(setting);
+  }
+
+  // ─── GLOBAL SMTP/SMS CONFIG ──────────────────────────
+
+  async getSmtpConfig(): Promise<SmtpConfig> {
+    const password = await this.globalSettings.getValue('smtp.password');
+    return {
+      host: (await this.globalSettings.getValue('smtp.host')) ?? '',
+      port: parseInt((await this.globalSettings.getValue('smtp.port')) ?? '587', 10),
+      secure: (await this.globalSettings.getValue('smtp.secure')) === 'true',
+      username: (await this.globalSettings.getValue('smtp.username')) ?? '',
+      password: password ? this.emailService.decrypt(password) : '',
+      fromEmail: (await this.globalSettings.getValue('smtp.fromEmail')) ?? '',
+      fromName: (await this.globalSettings.getValue('smtp.fromName')) ?? 'MST-VTS',
+    };
+  }
+
+  async getSmsConfig(): Promise<SmsConfig> {
+    const apiKey = await this.globalSettings.getValue('sms.apiKey');
+    return {
+      apiKey: apiKey ? this.emailService.decrypt(apiKey) : '',
+      senderId: (await this.globalSettings.getValue('sms.senderId')) ?? '',
+      type: (await this.globalSettings.getValue('sms.type')) ?? 'transactional',
+    };
+  }
+
+  async saveSmtpConfig(host: string, port: number, secure: boolean, username: string, password: string, fromEmail: string, fromName: string) {
+    await this.globalSettings.set('smtp.host', host, 'smtp');
+    await this.globalSettings.set('smtp.port', String(port), 'smtp');
+    await this.globalSettings.set('smtp.secure', String(secure), 'smtp');
+    await this.globalSettings.set('smtp.username', username, 'smtp');
+    if (password) {
+      await this.globalSettings.set('smtp.password', this.emailService.encrypt(password), 'smtp');
+    }
+    await this.globalSettings.set('smtp.fromEmail', fromEmail, 'smtp');
+    await this.globalSettings.set('smtp.fromName', fromName, 'smtp');
+  }
+
+  async saveSmsConfig(apiKey: string, senderId: string, type: string) {
+    if (apiKey) {
+      await this.globalSettings.set('sms.apiKey', this.emailService.encrypt(apiKey), 'sms');
+    }
+    await this.globalSettings.set('sms.senderId', senderId, 'sms');
+    await this.globalSettings.set('sms.type', type, 'sms');
   }
 
   // ─── DISPATCH ──────────────────────────────────────────
@@ -132,7 +154,6 @@ export class NotificationService {
   ): Promise<void> {
     const eventType = event.eventType as EventType;
 
-    // Check per-type override
     const override = setting.emailEventOverrides[eventType];
     if (override?.enabled === false) return;
 
@@ -143,18 +164,11 @@ export class NotificationService {
 
     if (recipients.length === 0) return;
 
-    const subject = `[Fleet Alert] ${EVENT_LABELS[eventType] ?? eventType}`;
-    const html = this.buildEmailHtml(event, setting, plateNumber);
+    const config = await this.getSmtpConfig();
+    if (!config.host) return;
 
-    const config: SmtpConfig = {
-      host: setting.smtpHost,
-      port: setting.smtpPort,
-      secure: setting.smtpSecure,
-      username: setting.smtpUsername,
-      password: setting.smtpPassword,
-      fromEmail: setting.fromEmail,
-      fromName: setting.fromName,
-    };
+    const subject = `[Fleet Alert] ${EVENT_LABELS[eventType] ?? eventType}`;
+    const html = this.buildEmailHtml(event, plateNumber);
 
     const log = this.logsRepo.create({
       tenantId: setting.tenantId,
@@ -195,12 +209,10 @@ export class NotificationService {
 
     if (recipients.length === 0) return;
 
+    const config = await this.getSmsConfig();
+    if (!config.apiKey) return;
+
     const message = this.buildSmsText(event, plateNumber);
-    const config: SmsConfig = {
-      apiKey: this.emailService.decrypt(setting.smsApiKey),
-      senderId: setting.smsSenderId,
-      type: setting.smsType,
-    };
 
     const log = this.logsRepo.create({
       tenantId: setting.tenantId,
@@ -225,7 +237,7 @@ export class NotificationService {
 
   // ─── TEMPLATES ─────────────────────────────────────────
 
-  private buildEmailHtml(event: Event, setting: NotificationSetting, plateNumber: string): string {
+  private buildEmailHtml(event: Event, plateNumber: string): string {
     const eventType = event.eventType as EventType;
     const label = EVENT_LABELS[eventType] ?? eventType;
     const time = event.startedAt
@@ -258,45 +270,34 @@ export class NotificationService {
     }
 
     return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:600px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-    <div style="background:${this.getEventColor(eventType)};color:#fff;padding:20px 24px;">
-      <h1 style="margin:0;font-size:20px;font-weight:600;">⚠️ ${label}</h1>
-      <p style="margin:4px 0 0;opacity:0.9;font-size:14px;">Fleet Monitoring Alert</p>
-    </div>
-    <div style="padding:20px 24px;">
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Vehicle</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${vehiclePlate}</td></tr>
-        <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Event</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${label}</td></tr>
-        <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Speed</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${speedInfo}</td></tr>
-        <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Time</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${time}</td></tr>
-        <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Location</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${location}</td></tr>
-        ${extraRows}
-      </table>
-      <div style="margin-top:24px;text-align:center;">
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/events" style="display:inline-block;padding:10px 24px;background:#171717;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;font-weight:500;">View in Dashboard →</a>
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:${this.getEventColor(eventType)};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0;">
+          <h2 style="margin:0;font-size:18px;">${label}</h2>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Vehicle</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${vehiclePlate}</td></tr>
+            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Event</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${label}</td></tr>
+            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Time</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${time}</td></tr>
+            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Speed</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${speedInfo}</td></tr>
+            <tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;">Location</td><td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${location}</td></tr>
+            ${extraRows}
+          </table>
+        </div>
+        <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px;">MST-VTS Fleet Monitoring</p>
       </div>
-    </div>
-    <div style="padding:12px 24px;background:#fafafa;text-align:center;font-size:12px;color:#999;">
-      This is an automated alert from your fleet monitoring system.
-    </div>
-  </div>
-</body>
-</html>`;
+    `;
   }
 
   private getEventColor(eventType: EventType): string {
     switch (eventType) {
-      case 'SOS':
-        return '#dc2626';
       case 'OVERSPEED':
-      case 'TOW_AWAY':
-      case 'POWER_CUT':
       case 'HARSH_BRAKING':
       case 'HARSH_ACCELERATION':
+      case 'SOS':
+        return '#dc2626';
+      case 'TOW_AWAY':
+      case 'POWER_CUT':
         return '#ea580c';
       case 'GEOFENCE_OUT':
       case 'LOW_BATTERY':
@@ -329,6 +330,52 @@ export class NotificationService {
     return `[Fleet Alert] ${label}: ${plate}${speed}. ${time}`.substring(0, 160);
   }
 
+  // ─── TEST ──────────────────────────────────────────────
+
+  async testEmail(tenantId: string, emailAddress: string): Promise<void> {
+    const config = await this.getSmtpConfig();
+    if (!config.host) throw new NotFoundException('SMTP not configured');
+
+    const html =
+      '<h2>Email notifications are working!</h2><p>This is a test message from your fleet monitoring system.</p>';
+    await this.emailService.send([emailAddress], '[Test] Fleet Notification', html, config);
+
+    const log = this.logsRepo.create({
+      tenantId,
+      eventType: 'IGNITION_ON' as EventType,
+      channel: 'email',
+      recipients: [emailAddress],
+      subject: '[Test] Fleet Notification',
+      status: 'sent',
+      sentAt: new Date(),
+    });
+    await this.logsRepo.save(log);
+  }
+
+  async testSms(tenantId: string, phone: string): Promise<void> {
+    const config = await this.getSmsConfig();
+    if (!config.apiKey) throw new NotFoundException('SMS not configured');
+
+    const message = '[Test] Fleet SMS notifications are working!';
+    const result = await this.smsService.send([phone], message, config);
+
+    const log = this.logsRepo.create({
+      tenantId,
+      eventType: 'IGNITION_ON' as EventType,
+      channel: 'sms',
+      recipients: [phone],
+      subject: message.substring(0, 100),
+      status: result.success ? 'sent' : 'failed',
+      errorMessage: result.success ? null : result.error,
+      sentAt: new Date(),
+    });
+    await this.logsRepo.save(log);
+
+    if (!result.success) {
+      throw new NotFoundException(result.error ?? 'SMS send failed');
+    }
+  }
+
   // ─── LOGS ──────────────────────────────────────────────
 
   async getLogs(
@@ -347,46 +394,5 @@ export class NotificationService {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
-  }
-
-  // ─── TEST ──────────────────────────────────────────────
-
-  async testEmail(tenantId: string, emailAddress: string): Promise<void> {
-    const setting = await this.getSettings(tenantId);
-    if (!setting) throw new NotFoundException('Notification settings not found');
-
-    const config: SmtpConfig = {
-      host: setting.smtpHost,
-      port: setting.smtpPort,
-      secure: setting.smtpSecure,
-      username: setting.smtpUsername,
-      password: setting.smtpPassword,
-      fromEmail: setting.fromEmail,
-      fromName: setting.fromName,
-    };
-
-    await this.emailService.send(
-      [emailAddress],
-      '[Test] Fleet Notification System',
-      '<h2>✅ Email notifications are working!</h2><p>This is a test message from your fleet monitoring system.</p>',
-      config,
-    );
-  }
-
-  async testSms(tenantId: string, phoneNumber: string): Promise<void> {
-    const setting = await this.getSettings(tenantId);
-    if (!setting) throw new NotFoundException('Notification settings not found');
-
-    const config: SmsConfig = {
-      apiKey: this.emailService.decrypt(setting.smsApiKey),
-      senderId: setting.smsSenderId,
-      type: setting.smsType,
-    };
-
-    await this.smsService.send(
-      [phoneNumber],
-      '[Test] Fleet SMS notifications are working!',
-      config,
-    );
   }
 }

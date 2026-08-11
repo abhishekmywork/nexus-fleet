@@ -16,30 +16,9 @@ export class NotificationSetting {
   @Column({ type: 'varchar', length: 36 })
   tenantId: string;
 
-  // ─── EMAIL ──────────────────────────────────────────
+  // ─── EMAIL (per-tenant toggles & recipients) ──────────
   @Column({ type: 'boolean', default: false })
   emailEnabled: boolean;
-
-  @Column({ type: 'varchar', length: 255, default: '' })
-  smtpHost: string;
-
-  @Column({ type: 'int', default: 587 })
-  smtpPort: number;
-
-  @Column({ type: 'boolean', default: false })
-  smtpSecure: boolean;
-
-  @Column({ type: 'varchar', length: 255, default: '' })
-  smtpUsername: string;
-
-  @Column({ type: 'varchar', length: 500, default: '' })
-  smtpPassword: string;
-
-  @Column({ type: 'varchar', length: 255, default: '' })
-  fromEmail: string;
-
-  @Column({ type: 'varchar', length: 100, default: '' })
-  fromName: string;
 
   @Column({ type: 'jsonb', default: () => "'[]'" })
   emailGlobalRecipients: string[];
@@ -50,18 +29,9 @@ export class NotificationSetting {
     { enabled: boolean; recipients: string[] }
   >;
 
-  // ─── SMS (SpringEdge) ──────────────────────────────
+  // ─── SMS (per-tenant toggles & recipients) ──────────
   @Column({ type: 'boolean', default: false })
   smsEnabled: boolean;
-
-  @Column({ type: 'varchar', length: 500, default: '' })
-  smsApiKey: string;
-
-  @Column({ type: 'varchar', length: 11, default: '' })
-  smsSenderId: string;
-
-  @Column({ type: 'varchar', length: 20, default: 'transactional' })
-  smsType: string;
 
   @Column({ type: 'jsonb', default: () => "'[]'" })
   smsGlobalRecipients: string[];

@@ -3,13 +3,13 @@
 import * as React from "react";
 import { Loader2, Plus, X, Send, Mail, MessageSquare } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/components/auth/auth-provider";
 import type { NotificationSettings, NotificationLog } from "@/lib/auth-types";
 import { EVENT_TYPE_LABELS } from "@/components/events/events-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -53,36 +53,39 @@ function EmailChipInput({
     const v = input.trim();
     if (v && !value.includes(v)) {
       onChange([...value, v]);
-      setInput("");
     }
+    setInput("");
   };
 
   return (
-    <div className="flex flex-wrap gap-1.5 rounded-lg border bg-transparent px-2.5 py-1.5 min-h-[36px]">
-      {value.map((email) => (
-        <Badge key={email} variant="secondary" className="gap-1 pr-1">
-          {email}
+    <div className="flex flex-wrap gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-ring">
+      {value.map((v) => (
+        <span
+          key={v}
+          className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+        >
+          {v}
           <button
             type="button"
-            onClick={() => onChange(value.filter((e) => e !== email))}
-            className="ml-0.5 rounded-full p-0.5 hover:bg-muted"
+            onClick={() => onChange(value.filter((x) => x !== v))}
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="size-3" />
           </button>
-        </Badge>
+        </span>
       ))}
       <input
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === ",") {
+          if (e.key === "Enter") {
             e.preventDefault();
             add();
           }
         }}
         onBlur={add}
         placeholder={value.length === 0 ? placeholder : ""}
-        className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-[120px]"
       />
     </div>
   );
@@ -100,7 +103,6 @@ function EventOverridesTable({
   channelLabel: string;
 }) {
   const [expanded, setExpanded] = React.useState<string | null>(null);
-
   const eventTypes = Object.keys(EVENT_TYPE_LABELS) as Array<string>;
 
   return (
@@ -121,17 +123,12 @@ function EventOverridesTable({
             return (
               <React.Fragment key={et}>
                 <TableRow>
-                  <TableCell className="font-medium text-sm">
-                    {label}
-                  </TableCell>
+                  <TableCell className="font-medium text-sm">{label}</TableCell>
                   <TableCell className="text-center">
                     <Switch
                       checked={ov.enabled}
                       onCheckedChange={(checked) =>
-                        onChange({
-                          ...overrides,
-                          [et]: { ...ov, enabled: checked },
-                        })
+                        onChange({ ...overrides, [et]: { ...ov, enabled: checked } })
                       }
                     />
                   </TableCell>
@@ -140,9 +137,7 @@ function EventOverridesTable({
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs"
-                      onClick={() =>
-                        setExpanded(expanded === et ? null : (et as string))
-                      }
+                      onClick={() => setExpanded(expanded === et ? null : (et as string))}
                     >
                       {hasOverride
                         ? `${ov.recipients.length} override(s)`
@@ -154,21 +149,15 @@ function EventOverridesTable({
                   <TableRow>
                     <TableCell colSpan={3} className="bg-muted/30 p-4">
                       <Label className="text-xs mb-2 block">
-                        {channelLabel} recipients for {label}{" "}
-                        (leave empty to use global)
+                        {channelLabel} recipients for {label} (leave empty to use global)
                       </Label>
                       <EmailChipInput
                         value={ov.recipients}
                         onChange={(recipients) =>
-                          onChange({
-                            ...overrides,
-                            [et]: { ...ov, recipients },
-                          })
+                          onChange({ ...overrides, [et]: { ...ov, recipients } })
                         }
                         placeholder={
-                          channelLabel === "Email"
-                            ? "alert@company.com"
-                            : "+919876543210"
+                          channelLabel === "Email" ? "alert@company.com" : "+919876543210"
                         }
                       />
                     </TableCell>
@@ -184,39 +173,56 @@ function EventOverridesTable({
 }
 
 export function NotificationSettings() {
-  const [settings, setSettings] =
-    React.useState<Partial<NotificationSettings> | null>(null);
+  const { user } = useAuth();
+  const isSuperUser = user?.isSuperUser;
+
+  // Global SMTP/SMS config
+  const [smtpConfig, setSmtpConfig] = React.useState({
+    host: "", port: 587, secure: false, username: "", password: "", fromEmail: "", fromName: "",
+  });
+  const [smsConfig, setSmsConfig] = React.useState({ apiKey: "", senderId: "", type: "transactional" });
+  const [smtpLoading, setSmtpLoading] = React.useState(true);
+  const [smsConfigLoading, setSmsConfigLoading] = React.useState(true);
+  const [smtpSaving, setSmtpSaving] = React.useState(false);
+  const [smsConfigSaving, setSmsConfigSaving] = React.useState(false);
+
+  // Per-tenant notification settings
+  const [settings, setSettings] = React.useState<Partial<NotificationSettings> | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [testEmail, setTestEmail] = React.useState("");
   const [testPhone, setTestPhone] = React.useState("");
   const [testing, setTesting] = React.useState(false);
   const [logs, setLogs] = React.useState<NotificationLog[]>([]);
-  const [logsMeta, setLogsMeta] = React.useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0,
-  });
+  const [logsMeta, setLogsMeta] = React.useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [logsLoading, setLogsLoading] = React.useState(false);
 
+  // Load global SMTP config
+  React.useEffect(() => {
+    if (!isSuperUser) { setSmtpLoading(false); return; }
+    api.notifications.getSmtpConfig()
+      .then(setSmtpConfig)
+      .catch(() => {})
+      .finally(() => setSmtpLoading(false));
+  }, [isSuperUser]);
+
+  // Load global SMS config
+  React.useEffect(() => {
+    if (!isSuperUser) { setSmsConfigLoading(false); return; }
+    api.notifications.getSmsConfig()
+      .then(setSmsConfig)
+      .catch(() => {})
+      .finally(() => setSmsConfigLoading(false));
+  }, [isSuperUser]);
+
+  // Load per-tenant settings
   const loadSettings = React.useCallback(async () => {
     setLoading(true);
     const defaults: Partial<NotificationSettings> = {
       emailEnabled: false,
-      smtpHost: "",
-      smtpPort: 587,
-      smtpUsername: "",
-      smtpPassword: "",
-      smtpSecure: false,
-      fromEmail: "",
-      fromName: "",
       emailGlobalRecipients: [],
       emailEventOverrides: {},
       smsEnabled: false,
-      smsApiKey: "",
-      smsSenderId: "",
-      smsType: "transactional",
       smsGlobalRecipients: [],
       smsEventOverrides: {},
     };
@@ -225,9 +231,7 @@ export function NotificationSettings() {
       setSettings(data ?? defaults);
     } catch (err) {
       setSettings(defaults);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load settings"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -240,69 +244,86 @@ export function NotificationSettings() {
       setLogs(res.data);
       setLogsMeta(res.meta);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load logs"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to load logs");
     } finally {
       setLogsLoading(false);
     }
   }, []);
 
-  React.useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+  React.useEffect(() => { loadSettings(); }, [loadSettings]);
 
   const update = (patch: Partial<NotificationSettings>) => {
     setSettings((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 
+  // Save SMTP config
+  const handleSaveSmtp = async () => {
+    setSmtpSaving(true);
+    try {
+      await api.notifications.saveSmtpConfig(smtpConfig);
+      toast.success("SMTP configuration saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save SMTP config");
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
+  // Save SMS config
+  const handleSaveSmsConfig = async () => {
+    setSmsConfigSaving(true);
+    try {
+      await api.notifications.saveSmsConfig(smsConfig);
+      toast.success("SMS configuration saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save SMS config");
+    } finally {
+      setSmsConfigSaving(false);
+    }
+  };
+
+  // Save per-tenant settings
   const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
     try {
       const saved = await api.notifications.saveSettings(settings);
       setSettings(saved);
-      toast.success("Notification settings saved");
+      toast.success("Notification preferences saved");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save settings"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
     }
   };
 
   const handleTestEmail = async () => {
-    if (!testEmail || !settings) return;
+    if (!testEmail) return;
     setTesting(true);
     try {
       await api.notifications.testEmail(testEmail);
       toast.success(`Test email sent to ${testEmail}`);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to send test email"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to send test email");
     } finally {
       setTesting(false);
     }
   };
 
   const handleTestSms = async () => {
-    if (!testPhone || !settings) return;
+    if (!testPhone) return;
     setTesting(true);
     try {
       await api.notifications.testSms(testPhone);
       toast.success(`Test SMS sent to ${testPhone}`);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to send test SMS"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to send test SMS");
     } finally {
       setTesting(false);
     }
   };
 
-  if (loading) {
+  if (loading || smtpLoading || smsConfigLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -326,13 +347,91 @@ export function NotificationSettings() {
 
       {/* ─── EMAIL TAB ───────────────────────────────────── */}
       <TabsContent value="email" className="space-y-6">
+        {isSuperUser && (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>SMTP Server Configuration</CardTitle>
+              <CardDescription>
+                Global SMTP settings used by all tenants for sending email notifications.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>SMTP Host</Label>
+                  <Input
+                    value={smtpConfig.host}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, host: e.target.value }))}
+                    placeholder="smtp.gmail.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Port</Label>
+                  <Input
+                    type="number"
+                    value={smtpConfig.port}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, port: parseInt(e.target.value) || 587 }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Username</Label>
+                  <Input
+                    value={smtpConfig.username}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, username: e.target.value }))}
+                    placeholder="user@example.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    value={smtpConfig.password}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, password: e.target.value }))}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>From Email</Label>
+                  <Input
+                    type="email"
+                    value={smtpConfig.fromEmail}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, fromEmail: e.target.value }))}
+                    placeholder="alerts@company.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>From Name</Label>
+                  <Input
+                    value={smtpConfig.fromName}
+                    onChange={(e) => setSmtpConfig((p) => ({ ...p, fromName: e.target.value }))}
+                    placeholder="MST-VTS"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={smtpConfig.secure}
+                  onCheckedChange={(v) => setSmtpConfig((p) => ({ ...p, secure: v }))}
+                />
+                <Label className="text-sm">Enable TLS</Label>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveSmtp} disabled={smtpSaving}>
+                  {smtpSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Save SMTP Config
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Email Notifications</CardTitle>
                 <CardDescription>
-                  Send event alerts via SMTP email.
+                  Enable email alerts and configure recipients for this tenant.
                 </CardDescription>
               </div>
               <Switch
@@ -342,147 +441,113 @@ export function NotificationSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>SMTP Host</Label>
-                <Input
-                  value={settings?.smtpHost ?? ""}
-                  onChange={(e) => update({ smtpHost: e.target.value })}
-                  placeholder="smtp.gmail.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Port</Label>
-                <Input
-                  type="number"
-                  value={settings?.smtpPort ?? 587}
-                  onChange={(e) =>
-                    update({ smtpPort: parseInt(e.target.value) || 587 })
-                  }
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Username</Label>
-                <Input
-                  value={settings?.smtpUsername ?? ""}
-                  onChange={(e) => update({ smtpUsername: e.target.value })}
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Password</Label>
-                <Input
-                  type="password"
-                  value={settings?.smtpPassword ?? ""}
-                  onChange={(e) => update({ smtpPassword: e.target.value })}
-                  placeholder="••••••••"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>From Email</Label>
+            <div className="grid gap-2">
+              <Label>Default Recipients</Label>
+              <EmailChipInput
+                value={settings?.emailGlobalRecipients ?? []}
+                onChange={(emailGlobalRecipients) => update({ emailGlobalRecipients })}
+                placeholder="Add email address and press Enter"
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block">Per-Event Overrides</Label>
+              <EventOverridesTable
+                overrides={settings?.emailEventOverrides ?? {}}
+                onChange={(emailEventOverrides) => update({ emailEventOverrides })}
+                globalRecipients={settings?.emailGlobalRecipients ?? []}
+                channelLabel="Email"
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block">Test Email</Label>
+              <div className="flex gap-2">
                 <Input
                   type="email"
-                  value={settings?.fromEmail ?? ""}
-                  onChange={(e) => update({ fromEmail: e.target.value })}
-                  placeholder="alerts@company.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="test@example.com"
+                  className="max-w-xs"
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label>From Name</Label>
-                <Input
-                  value={settings?.fromName ?? ""}
-                  onChange={(e) => update({ fromName: e.target.value })}
-                  placeholder="Fleet Alerts"
-                />
+                <Button variant="outline" onClick={handleTestEmail} disabled={testing || !testEmail}>
+                  {testing ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                  Send Test
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={settings?.smtpSecure ?? false}
-                onCheckedChange={(v) => update({ smtpSecure: v })}
-              />
-              <Label className="text-sm">Enable TLS</Label>
-            </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Email Recipients</CardTitle>
-            <CardDescription>
-              Default recipients for all events. Override per event type below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EmailChipInput
-              value={settings?.emailGlobalRecipients ?? []}
-              onChange={(emailGlobalRecipients) =>
-                update({ emailGlobalRecipients })
-              }
-              placeholder="Add email address and press Enter"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Per-Event Email Overrides</CardTitle>
-            <CardDescription>
-              Override recipients for specific event types.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EventOverridesTable
-              overrides={settings?.emailEventOverrides ?? {}}
-              onChange={(emailEventOverrides) => update({ emailEventOverrides })}
-              globalRecipients={settings?.emailGlobalRecipients ?? []}
-              channelLabel="Email"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Test Email</CardTitle>
-            <CardDescription>
-              Send a test email to verify your SMTP configuration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                value={testEmail}
-                onChange={(e) => setTestEmail(e.target.value)}
-                placeholder="test@example.com"
-                className="max-w-xs"
-              />
-              <Button
-                variant="outline"
-                onClick={handleTestEmail}
-                disabled={testing || !testEmail}
-              >
-                {testing ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 size-4" />
-                )}
-                Send Test
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Save Preferences
+          </Button>
+        </div>
       </TabsContent>
 
       {/* ─── SMS TAB ─────────────────────────────────────── */}
       <TabsContent value="sms" className="space-y-6">
+        {isSuperUser && (
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>SMS Gateway Configuration</CardTitle>
+              <CardDescription>
+                Global SMS settings used by all tenants for sending SMS notifications.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>API Key</Label>
+                  <Input
+                    type="password"
+                    value={smsConfig.apiKey}
+                    onChange={(e) => setSmsConfig((p) => ({ ...p, apiKey: e.target.value }))}
+                    placeholder="Your SpringEdge API key"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Sender ID</Label>
+                  <Input
+                    value={smsConfig.senderId}
+                    onChange={(e) => setSmsConfig((p) => ({ ...p, senderId: e.target.value }))}
+                    placeholder="SPREDG"
+                    maxLength={11}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2 max-w-[200px]">
+                <Label>Message Type</Label>
+                <Select
+                  value={smsConfig.type}
+                  onValueChange={(v) => setSmsConfig((p) => ({ ...p, type: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="transactional">Transactional</SelectItem>
+                    <SelectItem value="promotional">Promotional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveSmsConfig} disabled={smsConfigSaving}>
+                  {smsConfigSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Save SMS Config
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>SMS Notifications (SpringEdge)</CardTitle>
+                <CardTitle>SMS Notifications</CardTitle>
                 <CardDescription>
-                  Send event alerts via SMS through SpringEdge API.
+                  Enable SMS alerts and configure recipients for this tenant.
                 </CardDescription>
               </div>
               <Switch
@@ -492,108 +557,47 @@ export function NotificationSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label>API Key</Label>
-                <Input
-                  type="password"
-                  value={settings?.smsApiKey ?? ""}
-                  onChange={(e) => update({ smsApiKey: e.target.value })}
-                  placeholder="Your SpringEdge API key"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Sender ID</Label>
-                <Input
-                  value={settings?.smsSenderId ?? ""}
-                  onChange={(e) => update({ smsSenderId: e.target.value })}
-                  placeholder="SPREDG"
-                  maxLength={11}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2 max-w-[200px]">
-              <Label>Message Type</Label>
-              <Select
-                value={settings?.smsType ?? "transactional"}
-                onValueChange={(v) => update({ smsType: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="transactional">Transactional</SelectItem>
-                  <SelectItem value="promotional">Promotional</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>SMS Recipients</CardTitle>
-            <CardDescription>
-              Default phone numbers (E.164 format: +91XXXXXXXXXX). Override per
-              event type below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EmailChipInput
-              value={settings?.smsGlobalRecipients ?? []}
-              onChange={(smsGlobalRecipients) => update({ smsGlobalRecipients })}
-              placeholder="+919876543210"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Per-Event SMS Overrides</CardTitle>
-            <CardDescription>
-              Override recipients for specific event types.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EventOverridesTable
-              overrides={settings?.smsEventOverrides ?? {}}
-              onChange={(smsEventOverrides) => update({ smsEventOverrides })}
-              globalRecipients={settings?.smsGlobalRecipients ?? []}
-              channelLabel="SMS"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>Test SMS</CardTitle>
-            <CardDescription>
-              Send a test SMS to verify your SpringEdge configuration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Input
-                value={testPhone}
-                onChange={(e) => setTestPhone(e.target.value)}
+            <div className="grid gap-2">
+              <Label>Default Recipients (E.164 format: +91XXXXXXXXXX)</Label>
+              <EmailChipInput
+                value={settings?.smsGlobalRecipients ?? []}
+                onChange={(smsGlobalRecipients) => update({ smsGlobalRecipients })}
                 placeholder="+919876543210"
-                className="max-w-xs"
               />
-              <Button
-                variant="outline"
-                onClick={handleTestSms}
-                disabled={testing || !testPhone}
-              >
-                {testing ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 size-4" />
-                )}
-                Send Test
-              </Button>
+            </div>
+            <div>
+              <Label className="mb-2 block">Per-Event Overrides</Label>
+              <EventOverridesTable
+                overrides={settings?.smsEventOverrides ?? {}}
+                onChange={(smsEventOverrides) => update({ smsEventOverrides })}
+                globalRecipients={settings?.smsGlobalRecipients ?? []}
+                channelLabel="SMS"
+              />
+            </div>
+            <div>
+              <Label className="mb-2 block">Test SMS</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="+919876543210"
+                  className="max-w-xs"
+                />
+                <Button variant="outline" onClick={handleTestSms} disabled={testing || !testPhone}>
+                  {testing ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                  Send Test
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
+
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Save Preferences
+          </Button>
+        </div>
       </TabsContent>
 
       {/* ─── LOGS TAB ────────────────────────────────────── */}
@@ -603,16 +607,9 @@ export function NotificationSettings() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Notification Logs</CardTitle>
-                <CardDescription>
-                  {logsMeta.total} total notifications sent
-                </CardDescription>
+                <CardDescription>{logsMeta.total} total notifications sent</CardDescription>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadLogs(1)}
-                disabled={logsLoading}
-              >
+              <Button variant="outline" size="sm" onClick={() => loadLogs(1)} disabled={logsLoading}>
                 Refresh
               </Button>
             </div>
@@ -623,9 +620,7 @@ export function NotificationSettings() {
                 <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
             ) : logs.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No notifications sent yet.
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-8">No notifications sent yet.</p>
             ) : (
               <>
                 <div className="overflow-x-auto rounded-xl border">
@@ -652,9 +647,7 @@ export function NotificationSettings() {
                           </TableCell>
                           <TableCell>
                             <Badge
-                              variant={
-                                log.channel === "email" ? "default" : "outline"
-                              }
+                              variant={log.channel === "email" ? "default" : "outline"}
                               className="capitalize"
                             >
                               {log.channel}
@@ -666,11 +659,7 @@ export function NotificationSettings() {
                           <TableCell>
                             <Badge
                               variant={
-                                log.status === "sent"
-                                  ? "success"
-                                  : log.status === "failed"
-                                    ? "destructive"
-                                    : "secondary"
+                                log.status === "sent" ? "success" : log.status === "failed" ? "destructive" : "secondary"
                               }
                             >
                               {log.status}
@@ -683,23 +672,13 @@ export function NotificationSettings() {
                 </div>
                 {logsMeta.totalPages > 1 && (
                   <div className="flex justify-center gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={logsMeta.page <= 1}
-                      onClick={() => loadLogs(logsMeta.page - 1)}
-                    >
+                    <Button variant="outline" size="sm" disabled={logsMeta.page <= 1} onClick={() => loadLogs(logsMeta.page - 1)}>
                       Previous
                     </Button>
                     <span className="text-sm text-muted-foreground py-2">
                       Page {logsMeta.page} of {logsMeta.totalPages}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={logsMeta.page >= logsMeta.totalPages}
-                      onClick={() => loadLogs(logsMeta.page + 1)}
-                    >
+                    <Button variant="outline" size="sm" disabled={logsMeta.page >= logsMeta.totalPages} onClick={() => loadLogs(logsMeta.page + 1)}>
                       Next
                     </Button>
                   </div>
@@ -709,16 +688,6 @@ export function NotificationSettings() {
           </CardContent>
         </Card>
       </TabsContent>
-
-      {/* ─── SAVE BUTTON ──────────────────────────────────── */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : null}
-          Save Changes
-        </Button>
-      </div>
     </Tabs>
   );
 }
