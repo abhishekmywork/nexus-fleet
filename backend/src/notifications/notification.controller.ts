@@ -22,6 +22,28 @@ export class NotificationController {
   @Permissions('notifications:read')
   async getSettings(@CurrentUser() user: AuthenticatedUser) {
     const tenantId: string = user.tenantId ?? '';
+    if (!tenantId) {
+      return {
+        id: null,
+        tenantId: '',
+        emailEnabled: false,
+        smtpHost: '',
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUsername: '',
+        smtpPassword: '',
+        fromEmail: '',
+        fromName: '',
+        emailGlobalRecipients: [],
+        emailEventOverrides: {},
+        smsEnabled: false,
+        smsApiKey: '',
+        smsSenderId: '',
+        smsType: 'transactional',
+        smsGlobalRecipients: [],
+        smsEventOverrides: {},
+      };
+    }
     return this.notificationService.getSettings(tenantId);
   }
 
@@ -32,6 +54,9 @@ export class NotificationController {
     @Body() dto: SaveNotificationSettingsDto,
   ) {
     const tenantId: string = user.tenantId ?? '';
+    if (!tenantId) {
+      return { message: 'Super admin must select a tenant to configure notifications' };
+    }
     return this.notificationService.saveSettings(tenantId, dto);
   }
 
@@ -65,6 +90,9 @@ export class NotificationController {
     @Query('limit') limit?: string,
   ) {
     const tenantId: string = user.tenantId ?? '';
+    if (!tenantId) {
+      return { data: [], meta: { page: 1, limit: 20, total: 0, totalPages: 0 } };
+    }
     return this.notificationService.getLogs(
       tenantId,
       page ? parseInt(page, 10) : 1,
