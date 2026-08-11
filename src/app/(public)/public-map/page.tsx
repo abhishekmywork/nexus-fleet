@@ -171,7 +171,7 @@ export default function PublicMapPage() {
 
   if (!resolved || loading) {
     return (
-      <div className="flex h-[calc(100vh-52px)] items-center justify-center">
+      <div className="flex flex-1 min-h-0 items-center justify-center">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -179,7 +179,7 @@ export default function PublicMapPage() {
 
   if (error || !tenant) {
     return (
-      <div className="flex h-[calc(100vh-52px)] items-center justify-center">
+      <div className="flex flex-1 min-h-0 items-center justify-center">
         <p className="text-muted-foreground">Organization not found.</p>
       </div>
     );
@@ -187,7 +187,7 @@ export default function PublicMapPage() {
 
   if (accessDenied) {
     return (
-      <div className="flex h-[calc(100vh-52px)] flex-col items-center justify-center gap-4">
+      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-4">
         <MapPin className="size-12 text-muted-foreground" />
         <div className="text-center">
           <p className="text-lg font-semibold">Public Access Not Available</p>
@@ -200,7 +200,7 @@ export default function PublicMapPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-52px)]">
+    <div className="flex-1 min-h-0">
       <PublicLiveMap positions={positions} tenantName={tenant.name} />
     </div>
   );
