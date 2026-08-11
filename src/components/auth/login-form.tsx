@@ -81,8 +81,9 @@ export function LoginForm() {
         toast.info("Two-factor verification required");
       } else {
         toast.success("Signed in successfully");
-        router.replace("/live-map");
-      router.refresh();
+        const hasSubdomain = typeof window !== "undefined" && window.location.hostname.split(".").length > 2;
+        router.replace(hasSubdomain ? "/live-map" : "/");
+        router.refresh();
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -98,7 +99,8 @@ export function LoginForm() {
     try {
       await completeTwoFactor(challenge.twoFactorToken, code);
       toast.success("Signed in successfully");
-      router.replace("/live-map");
+      const hasSubdomain2 = typeof window !== "undefined" && window.location.hostname.split(".").length > 2;
+      router.replace(hasSubdomain2 ? "/live-map" : "/");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Invalid verification code");
