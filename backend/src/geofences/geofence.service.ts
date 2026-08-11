@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Geofence } from './geofence.entity';
+import { Tenant } from '../tenants/tenant.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import {
   GeofenceImportService,
@@ -20,6 +21,8 @@ export class GeofenceService {
   constructor(
     @InjectRepository(Geofence)
     private readonly geofences: Repository<Geofence>,
+    @InjectRepository(Tenant)
+    private readonly tenants: Repository<Tenant>,
     private readonly importService: GeofenceImportService,
   ) {}
 
@@ -29,6 +32,12 @@ export class GeofenceService {
       qb.andWhere('g.tenantId = :tenantId', { tenantId: user.tenantId });
     }
     return qb.orderBy('g.name', 'ASC').getMany();
+  }
+
+  async findPublicBySlug(slug: string) {
+    const tenant = await this.tenants.findOne({ where: { slug, status: 'active' as const } });
+    if (!tenant) return [];
+    return this.geofences.find({ where: { tenantId: tenant.id }, order: { name: 'ASC' } });
   }
 
   async findOne(id: string) {

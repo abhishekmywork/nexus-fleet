@@ -541,6 +541,10 @@ export const api = {
 
   geofences: {
     list: () => request<import("./auth-types").Geofence[]>("/geofences"),
+    publicByTenant: () =>
+      fetch(`${API_BASE.replace(/\/api\/?$/, "")}/api/geofences/public/by-tenant`, {
+        headers: getSubdomainSlug() ? { "X-Tenant-Slug": getSubdomainSlug()! } : {},
+      }).then((r) => r.json()) as Promise<import("./auth-types").Geofence[]>,
     get: (id: string) => request<import("./auth-types").Geofence>(`/geofences/${id}`),
     create: (dto: {
       name: string;

@@ -6,18 +6,32 @@ import {
   Param,
   Post,
   Put,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Public } from '../common/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { TenantResolverMiddleware } from '../common/middleware/tenant-resolver.middleware';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { GeofenceService, CreateGeofenceDto } from './geofence.service';
 
 @Controller('geofences')
 export class GeofenceController {
   constructor(private readonly geofenceService: GeofenceService) {}
+
+  @Public()
+  @Get('public/by-tenant')
+  async findPublicByTenant(@Req() req: Request) {
+    const slug =
+      (req.headers['x-tenant-slug'] as string) ||
+      TenantResolverMiddleware.extractSubdomain(req.headers.host ?? '');
+    if (!slug) return [];
+    return this.geofenceService.findPublicBySlug(slug);
+  }
 
   @Get()
   @Permissions('geofences:read')
