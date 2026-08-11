@@ -1,12 +1,14 @@
+"use client";
+
 import { Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
 import Link from "next/link";
+import { ContactFooter } from "@/components/layout/contact-footer";
 
 /**
  * Standalone layout for auth routes (login, etc.) — full-screen centered
  * card with a branded header, outside the admin app shell.
  */
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-background px-4 py-12">
       <Link
@@ -23,6 +25,8 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       </Link>
 
       <div className="w-full max-w-md">{children}</div>
+
+      <ContactFooter />
     </div>
   );
 }

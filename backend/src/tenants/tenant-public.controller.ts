@@ -11,7 +11,7 @@ export class TenantPublicController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   /**
-   * Returns basic tenant info (id, name, slug) for a given slug.
+   * Returns basic tenant info (id, name, slug, publicLiveMap) for a given slug.
    * Called by the frontend when it detects a subdomain.
    */
   @Public()
@@ -22,5 +22,15 @@ export class TenantPublicController {
       throw new NotFoundException('Tenant not found or inactive');
     }
     return tenant;
+  }
+
+  /**
+   * Returns whether public live map is enabled for a given tenant slug.
+   */
+  @Public()
+  @Get('public/:slug/public-live-map-status')
+  async getPublicLiveMapStatus(@Param('slug') slug: string) {
+    const enabled = await this.tenantsService.isPublicLiveMapEnabled(slug);
+    return { slug, enabled };
   }
 }

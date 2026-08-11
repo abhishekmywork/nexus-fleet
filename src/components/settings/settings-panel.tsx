@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Save, Settings, Truck, User } from "lucide-react";
+import { Loader2, Save, Settings, Truck, User, Contact } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { PageHeader } from "@/components/page-header";
@@ -22,6 +22,7 @@ import { NotificationSettings } from "./notification-settings";
 import { GlobalSettings } from "./global-settings";
 import { FleetDefaults } from "./fleet-defaults";
 import { TwoFactorSettings } from "./two-factor-settings";
+import { ContactDetails } from "./contact-details";
 import type { User as UserType } from "@/lib/auth-types";
 
 export function SettingsPanel() {
@@ -137,6 +138,12 @@ export function SettingsPanel() {
             <TabsTrigger value="global" className="gap-2">
               <Settings className="size-4" />
               Global Settings
+            </TabsTrigger>
+          )}
+          {hasGlobalRead && (
+            <TabsTrigger value="contact" className="gap-2">
+              <Contact className="size-4" />
+              Contact Details
             </TabsTrigger>
           )}
         </TabsList>
@@ -273,6 +280,13 @@ export function SettingsPanel() {
         {hasGlobalRead && (
           <TabsContent value="global">
             <GlobalSettings />
+          </TabsContent>
+        )}
+
+        {/* ─── CONTACT DETAILS TAB ────────────────────────── */}
+        {hasGlobalRead && (
+          <TabsContent value="contact">
+            <ContactDetails />
           </TabsContent>
         )}
       </Tabs>

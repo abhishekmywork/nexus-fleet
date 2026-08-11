@@ -11,6 +11,9 @@ export const DEFAULT_GLOBAL_SETTINGS = [
   { key: 'global.geofenceBufferMeters', value: '50', category: 'event_defaults', description: 'Geofence buffer zone (meters)' },
   { key: 'global.eventCooldownMinutes', value: '5', category: 'event_defaults', description: 'Instant event cooldown (minutes)' },
   { key: 'global.dataRetentionDays', value: '90', category: 'system', description: 'Audit log retention (days, 0 = forever)' },
+  { key: 'contact.name', value: 'MST-VTS Support', category: 'contact', description: 'Contact person or department name' },
+  { key: 'contact.phone', value: '', category: 'contact', description: 'Contact phone number' },
+  { key: 'contact.email', value: '', category: 'contact', description: 'Contact email address' },
 ];
 
 @Injectable()
@@ -79,5 +82,16 @@ export class GlobalSettingsService {
       results.push(await this.set(entry.key, entry.value, entry.category, entry.description));
     }
     return results;
+  }
+
+  async getContactDetails(): Promise<{ name: string; phone: string; email: string }> {
+    const name = await this.getValue('contact.name');
+    const phone = await this.getValue('contact.phone');
+    const email = await this.getValue('contact.email');
+    return {
+      name: name ?? 'MST-VTS Support',
+      phone: phone ?? '',
+      email: email ?? '',
+    };
   }
 }

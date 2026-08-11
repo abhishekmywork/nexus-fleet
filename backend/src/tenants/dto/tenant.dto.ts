@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateTenantDto {
   @IsString()
@@ -24,4 +24,8 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsIn(['active', 'suspended'])
   status?: 'active' | 'suspended';
+
+  @IsOptional()
+  @IsBoolean()
+  publicLiveMap?: boolean;
 }

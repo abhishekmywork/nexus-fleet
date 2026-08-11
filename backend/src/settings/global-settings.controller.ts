@@ -1,10 +1,17 @@
-import { Controller, Get, Put, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { GlobalSettingsService } from './global-settings.service';
 
 @Controller('settings/global')
 export class GlobalSettingsController {
   constructor(private readonly service: GlobalSettingsService) {}
+
+  @Public()
+  @Get('public/contact')
+  async getPublicContact() {
+    return this.service.getContactDetails();
+  }
 
   @Get()
   @Permissions('settings:global:read')

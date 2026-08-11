@@ -28,6 +28,9 @@ export class Tenant {
   @Column({ type: 'varchar', length: 20, default: 'active' })
   status: TenantStatus;
 
+  @Column({ type: 'boolean', default: false })
+  publicLiveMap: boolean;
+
   @OneToMany(() => User, (user) => user.tenant)
   users: User[];
 

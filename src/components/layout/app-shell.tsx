@@ -1,6 +1,7 @@
 import { SidebarProvider } from "@/components/layout/sidebar-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 /**
@@ -17,12 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex min-w-0 flex-1 flex-col">
             <Header />
             <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-            <footer className="border-t px-4 py-4 sm:px-6 lg:px-8">
-              <p className="text-center text-xs text-muted-foreground">
-                © {new Date().getFullYear()} MST-VTS. Built with Next.js,
-                Tailwind CSS and shadcn/ui.
-              </p>
-            </footer>
+            <Footer />
           </div>
         </div>
       </TooltipProvider>

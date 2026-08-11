@@ -25,6 +25,7 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  publicLiveMap: boolean;
   createdAt: string;
   updatedAt: string;
 }

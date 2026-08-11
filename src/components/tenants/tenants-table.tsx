@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   Plus,
   Trash2,
+  Globe,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Tenant } from "@/lib/auth-types";
@@ -55,6 +56,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -136,6 +138,16 @@ export function TenantsTable() {
     }
   };
 
+  const handleTogglePublicLiveMap = async (tenant: Tenant) => {
+    try {
+      const updated = await api.tenants.togglePublicLiveMap(tenant.id, !tenant.publicLiveMap);
+      setTenants((prev) => prev.map((t) => t.id === tenant.id ? { ...t, publicLiveMap: updated.publicLiveMap } : t));
+      toast.success(`Public live map ${updated.publicLiveMap ? "enabled" : "disabled"} for ${tenant.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update tenant");
+    }
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -164,6 +176,7 @@ export function TenantsTable() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
+                <TableHead className="hidden md:table-cell">Public Map</TableHead>
                 <TableHead className="hidden md:table-cell">Created</TableHead>
                 <TableHead className="w-[50px] text-right">
                   <span className="sr-only">Actions</span>
@@ -173,7 +186,7 @@ export function TenantsTable() {
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     <Loader2
                       className="mx-auto size-5 animate-spin text-muted-foreground"
                       aria-hidden="true"
@@ -196,6 +209,18 @@ export function TenantsTable() {
                       <span className="font-mono text-xs text-muted-foreground">
                         {tenant.slug}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={tenant.publicLiveMap}
+                          onCheckedChange={() => handleTogglePublicLiveMap(tenant)}
+                          aria-label={`Toggle public map for ${tenant.name}`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          {tenant.publicLiveMap ? "On" : "Off"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground md:table-cell">
                       {formatDate(tenant.createdAt)}

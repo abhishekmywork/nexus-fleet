@@ -380,6 +380,8 @@ export const api = {
     create: (dto: { name: string; slug: string }) =>
       request<Tenant>("/tenants", { method: "POST", body: dto }),
     remove: (id: string) => request<void>(`/tenants/${id}`, { method: "DELETE" }),
+    togglePublicLiveMap: (id: string, enabled: boolean) =>
+      request<Tenant>(`/tenants/${id}`, { method: "PATCH", body: { publicLiveMap: enabled } }),
   },
 
   vehicles: {
@@ -634,7 +636,16 @@ export const api = {
 
   liveMap: {
     positions: () => request<import("./auth-types").LivePosition[]>("/live-map/positions"),
+    publicPositions: () =>
+      fetch(`${API_BASE.replace(/\/api\/?$/, "")}/api/live-map/public/positions`, {
+        headers: getSubdomainSlug() ? { "X-Tenant-Slug": getSubdomainSlug()! } : {},
+      }).then((r) => r.json()) as Promise<import("./auth-types").LivePosition[]>,
   },
+
+  publicContact: () =>
+    fetch(`${API_BASE.replace(/\/api\/?$/, "")}/api/settings/global/public/contact`).then(
+      (r) => r.json() as Promise<{ name: string; phone: string; email: string }>
+    ),
 
   reports: {
     vehicleTrips: (params: { from: string; to: string; deviceId?: string }) =>

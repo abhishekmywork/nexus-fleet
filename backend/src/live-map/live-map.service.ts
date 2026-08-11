@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
+import { Tenant } from '../tenants/tenant.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 export interface PositionResponse {
@@ -37,6 +38,8 @@ export class LiveMapService {
     private readonly devices: Repository<GPSDevice>,
     @InjectRepository(GPSReading)
     private readonly readings: Repository<GPSReading>,
+    @InjectRepository(Tenant)
+    private readonly tenants: Repository<Tenant>,
   ) {}
 
   async getActivePositions(user: AuthenticatedUser): Promise<PositionResponse[]> {
@@ -52,6 +55,25 @@ export class LiveMapService {
       )
       .getMany();
 
+    return this.buildPositions(devices);
+  }
+
+  async getPublicPositions(tenantSlug: string): Promise<PositionResponse[]> {
+    const tenant = await this.tenants.findOne({
+      where: { slug: tenantSlug, status: 'active' as const, publicLiveMap: true as any },
+    });
+    if (!tenant) return [];
+
+    const devices = await this.devices
+      .createQueryBuilder('device')
+      .leftJoinAndSelect('device.vehicle', 'vehicle')
+      .where('device.tenantId = :tenantId', { tenantId: tenant.id })
+      .getMany();
+
+    return this.buildPositions(devices);
+  }
+
+  private async buildPositions(devices: GPSDevice[]): Promise<PositionResponse[]> {
     const results: PositionResponse[] = [];
 
     for (const device of devices) {

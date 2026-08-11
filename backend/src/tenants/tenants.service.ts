@@ -13,6 +13,7 @@ const mapTenant = (tenant: Tenant, userCount = 0) => ({
   name: tenant.name,
   slug: tenant.slug,
   status: tenant.status,
+  publicLiveMap: tenant.publicLiveMap,
   userCount,
   createdAt: tenant.createdAt,
   updatedAt: tenant.updatedAt,
@@ -64,6 +65,7 @@ export class TenantsService {
     Object.assign(tenant, {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.publicLiveMap !== undefined && { publicLiveMap: dto.publicLiveMap }),
     });
     await this.tenants.save(tenant);
     return this.findOne(id);
@@ -74,7 +76,14 @@ export class TenantsService {
       where: { slug, status: 'active' as const },
     });
     if (!tenant) return null;
-    return { id: tenant.id, name: tenant.name, slug: tenant.slug };
+    return { id: tenant.id, name: tenant.name, slug: tenant.slug, publicLiveMap: tenant.publicLiveMap };
+  }
+
+  async isPublicLiveMapEnabled(slug: string): Promise<boolean> {
+    const tenant = await this.tenants.findOne({
+      where: { slug, status: 'active' as const },
+    });
+    return tenant?.publicLiveMap ?? false;
   }
 
   async remove(id: string): Promise<void> {
