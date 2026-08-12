@@ -260,7 +260,11 @@ export function NotificationSettings() {
   const handleSaveSmtp = async () => {
     setSmtpSaving(true);
     try {
-      await api.notifications.saveSmtpConfig(smtpConfig);
+      const payload = { ...smtpConfig };
+      if (payload.password.startsWith('\u2022')) {
+        payload.password = '';
+      }
+      await api.notifications.saveSmtpConfig(payload);
       toast.success("SMTP configuration saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save SMTP config");
@@ -273,7 +277,11 @@ export function NotificationSettings() {
   const handleSaveSmsConfig = async () => {
     setSmsConfigSaving(true);
     try {
-      await api.notifications.saveSmsConfig(smsConfig);
+      const payload = { ...smsConfig };
+      if (payload.apiKey.startsWith('\u2022')) {
+        payload.apiKey = '';
+      }
+      await api.notifications.saveSmsConfig(payload);
       toast.success("SMS configuration saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save SMS config");

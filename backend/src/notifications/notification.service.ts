@@ -101,7 +101,7 @@ export class NotificationService {
     await this.globalSettings.set('smtp.port', String(port), 'smtp');
     await this.globalSettings.set('smtp.secure', String(secure), 'smtp');
     await this.globalSettings.set('smtp.username', username, 'smtp');
-    if (password) {
+    if (password && password !== '••••••••' && !password.startsWith('•')) {
       await this.globalSettings.set('smtp.password', this.emailService.encrypt(password), 'smtp');
     }
     await this.globalSettings.set('smtp.fromEmail', fromEmail, 'smtp');
@@ -109,7 +109,7 @@ export class NotificationService {
   }
 
   async saveSmsConfig(apiKey: string, senderId: string, type: string) {
-    if (apiKey) {
+    if (apiKey && apiKey !== '••••••••' && !apiKey.startsWith('•')) {
       await this.globalSettings.set('sms.apiKey', this.emailService.encrypt(apiKey), 'sms');
     }
     await this.globalSettings.set('sms.senderId', senderId, 'sms');
