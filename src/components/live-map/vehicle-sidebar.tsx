@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  ArrowLeft,
   Fence,
   Power,
   Route,
@@ -205,16 +204,6 @@ export function VehicleSidebar({
               onCheckedChange={onToggleGeofences}
               size="sm"
             />
-          </div>
-
-          {/* Back button */}
-          <div className="mt-auto border-t p-3">
-            <Button variant="outline" size="sm" className="w-full h-7 text-xs" asChild>
-              <a href="/" className="gap-1.5">
-                <ArrowLeft className="size-3" />
-                Dashboard
-              </a>
-            </Button>
           </div>
     </div>
   );
