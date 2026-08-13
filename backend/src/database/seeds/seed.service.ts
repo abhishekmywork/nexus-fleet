@@ -97,7 +97,7 @@ export class SeedService {
         description: 'Manage users, roles and general settings',
         permissionKeys: [
           // Page permissions
-          'page:live_map', 'page:analytics', 'page:reports',
+          'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:serving_areas', 'page:drivers', 'page:gps_devices',
           'page:telemetry', 'page:events', 'page:geofences',
           'page:users', 'page:products', 'page:roles', 'page:settings',
@@ -121,7 +121,7 @@ export class SeedService {
         description: 'Read and update users',
         permissionKeys: [
           // Page permissions
-          'page:live_map', 'page:analytics', 'page:reports',
+          'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:drivers', 'page:telemetry', 'page:events', 'page:geofences',
           'page:users', 'page:settings',
           // Action permissions
@@ -135,7 +135,7 @@ export class SeedService {
         description: 'Read-only access',
         permissionKeys: [
           // Page permissions
-          'page:live_map', 'page:analytics', 'page:reports',
+          'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:drivers', 'page:telemetry', 'page:events', 'page:geofences',
           'page:users', 'page:roles', 'page:settings',
           // Action permissions

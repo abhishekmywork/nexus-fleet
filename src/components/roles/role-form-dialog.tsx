@@ -39,6 +39,7 @@ interface RoleFormDialogProps {
  */
 const PAGE_ACTION_MAP: Record<string, string[]> = {
   "page:live_map": ["telemetry:read", "geofences:read"],
+  "page:dashboard": [],
   "page:analytics": [],
   "page:reports": ["telemetry:read", "events:read", "geofences:read"],
   "page:vehicles": ["vehicles:read"],
@@ -58,6 +59,7 @@ const PAGE_ACTION_MAP: Record<string, string[]> = {
 /** Human-readable labels for page sections */
 const PAGE_LABELS: Record<string, string> = {
   "page:live_map": "Live Map",
+  "page:dashboard": "Dashboard",
   "page:analytics": "Analytics",
   "page:reports": "Reports",
   "page:vehicles": "Vehicles",
@@ -77,6 +79,7 @@ const PAGE_LABELS: Record<string, string> = {
 /** Order pages to match sidebar order */
 const PAGE_ORDER = [
   "page:live_map",
+  "page:dashboard",
   "page:analytics",
   "page:reports",
   "page:vehicles",

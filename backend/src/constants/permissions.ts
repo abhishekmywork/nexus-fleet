@@ -16,6 +16,7 @@ export interface PermissionDefinition {
 export const PERMISSIONS: PermissionDefinition[] = [
   // ─── PAGE PERMISSIONS ────────────────────────────────
   { key: 'page:live_map', name: 'Live Map', description: 'Access the live vehicle tracking map', module: 'pages', type: 'page' },
+  { key: 'page:dashboard', name: 'Dashboard', description: 'Access the main dashboard', module: 'pages', type: 'page' },
   { key: 'page:analytics', name: 'Analytics', description: 'Access the analytics dashboard', module: 'pages', type: 'page' },
   { key: 'page:reports', name: 'Reports', description: 'Access the reports section', module: 'pages', type: 'page' },
   { key: 'page:vehicles', name: 'Vehicles', description: 'Access the vehicles management page', module: 'pages', type: 'page' },
@@ -109,6 +110,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
  */
 export const PAGE_ACTION_MAP: Record<string, string[]> = {
   'page:live_map':      ['telemetry:read', 'geofences:read'],
+  'page:dashboard':     [],
   'page:analytics':     [],
   'page:reports':       ['telemetry:read', 'events:read', 'geofences:read'],
   'page:vehicles':      ['vehicles:read'],

@@ -41,7 +41,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Overview",
     items: [
       { title: "Live Map", href: "/live-map", icon: Map, permission: "page:live_map" },
-      { title: "Dashboard", href: "/", icon: LayoutDashboard },
+      { title: "Dashboard", href: "/", icon: LayoutDashboard, permission: "page:dashboard" },
       { title: "Analytics", href: "/analytics", icon: BarChart3, permission: "page:analytics" },
       { title: "Reports", href: "/reports", icon: ClipboardList, permission: "page:reports" },
     ],
