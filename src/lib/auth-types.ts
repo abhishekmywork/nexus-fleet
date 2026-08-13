@@ -8,6 +8,7 @@ export interface Permission {
   key: string;
   name: string;
   module: string;
+  type: 'page' | 'action';
 }
 
 export interface Role {

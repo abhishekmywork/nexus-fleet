@@ -10,6 +10,9 @@ import { Role } from '../roles/role.entity';
 /**
  * A granular capability (e.g. `users:create`). Permissions are granted to
  * users indirectly by attaching them to roles.
+ *
+ * `type` distinguishes page-visibility permissions (`page`) from
+ * API-operation permissions (`action`).
  */
 @Entity('permissions')
 export class Permission {
@@ -27,6 +30,9 @@ export class Permission {
 
   @Column({ type: 'varchar', length: 80, nullable: true })
   module: string | null;
+
+  @Column({ type: 'varchar', length: 20, default: 'action' })
+  type: 'page' | 'action';
 
   @ManyToMany(() => Role, (role) => role.permissions)
   @JoinTable()

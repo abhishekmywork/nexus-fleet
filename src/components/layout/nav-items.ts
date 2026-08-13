@@ -23,7 +23,7 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   badge?: string;
-  /** Permission required to see this item. Undefined = visible to all. */
+  /** Page permission required to see this item. Undefined = visible to all. */
   permission?: string;
 }
 
@@ -34,46 +34,46 @@ export interface NavSection {
 
 /**
  * Sidebar navigation configuration. Add new routes here to extend the shell.
- * Items with a `permission` are only shown to users granted that permission.
+ * Items with a `permission` are only shown to users granted that page permission.
  */
 export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Overview",
     items: [
-      { title: "Live Map", href: "/live-map", icon: Map, permission: "telemetry:read" },
+      { title: "Live Map", href: "/live-map", icon: Map, permission: "page:live_map" },
       { title: "Dashboard", href: "/", icon: LayoutDashboard },
-      { title: "Analytics", href: "/analytics", icon: BarChart3 },
-      { title: "Reports", href: "/reports", icon: ClipboardList },
+      { title: "Analytics", href: "/analytics", icon: BarChart3, permission: "page:analytics" },
+      { title: "Reports", href: "/reports", icon: ClipboardList, permission: "page:reports" },
     ],
   },
   {
     label: "Fleet",
     items: [
-      { title: "Vehicles", href: "/vehicles", icon: Car, permission: "vehicles:read" },
-      { title: "Serving Areas", href: "/serving-areas", icon: MapPin, permission: "serving_areas:read" },
-      { title: "Drivers", href: "/drivers", icon: UserCheck, permission: "drivers:read" },
-      { title: "GPS Devices", href: "/gps-devices", icon: Radio, permission: "gps_devices:read" },
-      { title: "Telemetry", href: "/telemetry", icon: Signal, permission: "telemetry:read" },
-      { title: "Events", href: "/events", icon: Bell, permission: "events:read" },
-      { title: "Geofences", href: "/geofences", icon: Fence, permission: "geofences:read" },
+      { title: "Vehicles", href: "/vehicles", icon: Car, permission: "page:vehicles" },
+      { title: "Serving Areas", href: "/serving-areas", icon: MapPin, permission: "page:serving_areas" },
+      { title: "Drivers", href: "/drivers", icon: UserCheck, permission: "page:drivers" },
+      { title: "GPS Devices", href: "/gps-devices", icon: Radio, permission: "page:gps_devices" },
+      { title: "Telemetry", href: "/telemetry", icon: Signal, permission: "page:telemetry" },
+      { title: "Events", href: "/events", icon: Bell, permission: "page:events" },
+      { title: "Geofences", href: "/geofences", icon: Fence, permission: "page:geofences" },
     ],
   },
   {
     label: "Management",
     items: [
-      { title: "Users", href: "/users", icon: Users, permission: "users:read" },
-      { title: "Products", href: "/products", icon: Package },
+      { title: "Users", href: "/users", icon: Users, permission: "page:users" },
+      { title: "Products", href: "/products", icon: Package, permission: "page:products" },
     ],
   },
   {
     label: "Access control",
     items: [
-      { title: "Roles", href: "/roles", icon: ShieldCheck, permission: "roles:read" },
-      { title: "Tenants", href: "/tenants", icon: Building2, permission: "tenants:read" },
+      { title: "Roles", href: "/roles", icon: ShieldCheck, permission: "page:roles" },
+      { title: "Tenants", href: "/tenants", icon: Building2, permission: "page:tenants" },
     ],
   },
   {
     label: "System",
-    items: [{ title: "Settings", href: "/settings", icon: Settings }],
+    items: [{ title: "Settings", href: "/settings", icon: Settings, permission: "page:settings" }],
   },
 ];
