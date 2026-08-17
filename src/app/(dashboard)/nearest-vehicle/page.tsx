@@ -20,8 +20,8 @@ type Vehicle = {
   plateNumber: string;
   make: string;
   model: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   speed: number | null;
   heading: number | null;
   lastSeen: string | null;
@@ -286,7 +286,7 @@ const NearestMapInner = React.forwardRef<any, { center: any }>(
         }).addTo(map);
 
         mapInstanceRef.current = map;
-        if (typeof ref === "object") ref.current = map;
+        if (typeof ref === "object" && ref) ref.current = map;
       };
 
       init();
