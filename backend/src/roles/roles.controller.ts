@@ -10,6 +10,8 @@ import {
   Put,
 } from '@nestjs/common';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { RolesService } from './roles.service';
 import {
   AssignPermissionsDto,
@@ -39,8 +41,8 @@ export class RolesController {
 
   @Post()
   @Permissions('roles:create')
-  create(@Body() dto: CreateRoleDto) {
-    return this.rolesService.create(dto);
+  create(@Body() dto: CreateRoleDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.rolesService.create(dto, actor);
   }
 
   @Patch(':id')
@@ -48,14 +50,15 @@ export class RolesController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRoleDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.rolesService.update(id, dto);
+    return this.rolesService.update(id, dto, actor);
   }
 
   @Delete(':id')
   @Permissions('roles:delete')
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.rolesService.remove(id);
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.rolesService.remove(id, actor);
   }
 
   @Put(':id/permissions')
@@ -63,7 +66,8 @@ export class RolesController {
   assignPermissions(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignPermissionsDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.rolesService.assignPermissions(id, dto);
+    return this.rolesService.assignPermissions(id, dto, actor);
   }
 }

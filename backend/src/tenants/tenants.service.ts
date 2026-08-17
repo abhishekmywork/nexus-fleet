@@ -7,6 +7,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from './tenant.entity';
 import { CreateTenantDto, UpdateTenantDto } from './dto/tenant.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 const mapTenant = (tenant: Tenant, userCount = 0) => ({
   id: tenant.id,
@@ -27,6 +29,7 @@ const mapTenant = (tenant: Tenant, userCount = 0) => ({
 export class TenantsService {
   constructor(
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findAll() {
@@ -46,7 +49,7 @@ export class TenantsService {
     return mapTenant(tenant, tenant.users.length);
   }
 
-  async create(dto: CreateTenantDto) {
+  async create(dto: CreateTenantDto, actor?: AuthenticatedUser) {
     const existing = await this.tenants.findOne({
       where: { slug: dto.slug },
     });
@@ -55,10 +58,18 @@ export class TenantsService {
     const tenant = await this.tenants.save(
       this.tenants.create({ name: dto.name, slug: dto.slug, status: 'active' }),
     );
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'created',
+        entityType: 'tenant',
+        entityId: tenant.id,
+        entityName: tenant.name,
+      });
+    }
     return mapTenant(tenant);
   }
 
-  async update(id: string, dto: UpdateTenantDto) {
+  async update(id: string, dto: UpdateTenantDto, actor?: AuthenticatedUser) {
     const tenant = await this.tenants.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException('Tenant not found');
 
@@ -68,6 +79,14 @@ export class TenantsService {
       ...(dto.publicLiveMap !== undefined && { publicLiveMap: dto.publicLiveMap }),
     });
     await this.tenants.save(tenant);
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'updated',
+        entityType: 'tenant',
+        entityId: tenant.id,
+        entityName: tenant.name,
+      });
+    }
     return this.findOne(id);
   }
 
@@ -86,7 +105,7 @@ export class TenantsService {
     return tenant?.publicLiveMap ?? false;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor?: AuthenticatedUser): Promise<void> {
     const tenant = await this.tenants.findOne({
       where: { id },
       relations: { users: true },
@@ -98,5 +117,13 @@ export class TenantsService {
       );
     }
     await this.tenants.remove(tenant);
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'deleted',
+        entityType: 'tenant',
+        entityId: tenant.id,
+        entityName: tenant.name,
+      });
+    }
   }
 }

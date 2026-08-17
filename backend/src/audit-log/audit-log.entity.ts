@@ -6,19 +6,34 @@ import {
 } from 'typeorm';
 
 export type AuditEntityType =
+  | 'vehicle'
   | 'vehicle_serving_area'
   | 'vehicle_driver'
   | 'vehicle_gps_device'
-  | 'vehicle';
+  | 'tenant'
+  | 'user'
+  | 'role'
+  | 'serving_area'
+  | 'geofence'
+  | 'event_rule'
+  | 'setting';
 
-export type AuditAction = 'assigned' | 'unassigned' | 'soft_deleted' | 'restored' | 'permanently_deleted' | 'created' | 'updated';
+export type AuditAction =
+  | 'assigned'
+  | 'unassigned'
+  | 'soft_deleted'
+  | 'restored'
+  | 'permanently_deleted'
+  | 'created'
+  | 'updated'
+  | 'deleted';
 
 @Entity('audit_logs')
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: 'varchar', length: 30 })
   action: AuditAction;
 
   @Column({ type: 'varchar', length: 30 })

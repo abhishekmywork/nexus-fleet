@@ -8,6 +8,7 @@ import {
   GeofenceImportService,
   ParsedGeofence,
 } from './geofence-import.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 export interface CreateGeofenceDto {
   name: string;
@@ -24,6 +25,7 @@ export class GeofenceService {
     @InjectRepository(Tenant)
     private readonly tenants: Repository<Tenant>,
     private readonly importService: GeofenceImportService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findAll(user: AuthenticatedUser) {
@@ -55,21 +57,52 @@ export class GeofenceService {
       enabled: dto.enabled ?? true,
       tenantId,
     });
-    return this.geofences.save(geofence);
+    const saved = await this.geofences.save(geofence);
+
+    await this.auditLog.log(user, {
+      action: 'created',
+      entityType: 'geofence',
+      entityId: saved.id,
+      entityName: saved.name,
+    });
+
+    return saved;
   }
 
-  async update(id: string, dto: Partial<CreateGeofenceDto>) {
+  async update(id: string, dto: Partial<CreateGeofenceDto>, user?: AuthenticatedUser) {
     const geofence = await this.findOne(id);
     if (dto.name !== undefined) geofence.name = dto.name;
     if (dto.type !== undefined) geofence.type = dto.type;
     if (dto.coordinates !== undefined) geofence.coordinates = dto.coordinates;
     if (dto.enabled !== undefined) geofence.enabled = dto.enabled;
-    return this.geofences.save(geofence);
+    const saved = await this.geofences.save(geofence);
+
+    if (user) {
+      await this.auditLog.log(user, {
+        action: 'updated',
+        entityType: 'geofence',
+        entityId: saved.id,
+        entityName: saved.name,
+      });
+    }
+
+    return saved;
   }
 
-  async remove(id: string) {
+  async remove(id: string, user?: AuthenticatedUser) {
     const geofence = await this.findOne(id);
+    const geofenceId = geofence.id;
+    const geofenceName = geofence.name;
     await this.geofences.remove(geofence);
+
+    if (user) {
+      await this.auditLog.log(user, {
+        action: 'deleted',
+        entityType: 'geofence',
+        entityId: geofenceId,
+        entityName: geofenceName,
+      });
+    }
   }
 
   async findEnabledForTenant(tenantId: string): Promise<Geofence[]> {

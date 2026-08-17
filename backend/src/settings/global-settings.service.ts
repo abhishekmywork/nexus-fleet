@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GlobalSetting } from './global-setting.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 export const DEFAULT_GLOBAL_SETTINGS = [
   { key: 'global.defaultSpeedLimit', value: '120', category: 'event_defaults', description: 'Default speed limit (km/h)' },
@@ -33,6 +35,7 @@ export class GlobalSettingsService {
   constructor(
     @InjectRepository(GlobalSetting)
     private readonly repo: Repository<GlobalSetting>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -74,7 +77,13 @@ export class GlobalSettingsService {
     return isNaN(num) ? fallback : num;
   }
 
-  async set(key: string, value: string, category?: string, description?: string): Promise<GlobalSetting> {
+  async set(
+    key: string,
+    value: string,
+    category?: string,
+    description?: string,
+    actor?: AuthenticatedUser,
+  ): Promise<GlobalSetting> {
     let setting = await this.repo.findOne({ where: { key } });
     if (setting) {
       setting.value = value;
@@ -83,13 +92,27 @@ export class GlobalSettingsService {
     } else {
       setting = this.repo.create({ key, value, category: category ?? 'general', description: description ?? '' });
     }
-    return this.repo.save(setting);
+    const saved = await this.repo.save(setting);
+
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'updated',
+        entityType: 'setting',
+        entityId: saved.id,
+        entityName: key,
+      });
+    }
+
+    return saved;
   }
 
-  async bulkSet(entries: { key: string; value: string; category?: string; description?: string }[]): Promise<GlobalSetting[]> {
+  async bulkSet(
+    entries: { key: string; value: string; category?: string; description?: string }[],
+    actor?: AuthenticatedUser,
+  ): Promise<GlobalSetting[]> {
     const results: GlobalSetting[] = [];
     for (const entry of entries) {
-      results.push(await this.set(entry.key, entry.value, entry.category, entry.description));
+      results.push(await this.set(entry.key, entry.value, entry.category, entry.description, actor));
     }
     return results;
   }

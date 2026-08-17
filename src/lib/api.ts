@@ -458,12 +458,29 @@ export const api = {
   },
 
   auditLogs: {
-    list: (params?: { entityType?: string; entityId?: string }) => {
+    list: (params?: {
+      entityType?: string;
+      entityId?: string;
+      action?: string;
+      search?: string;
+      from?: string;
+      to?: string;
+      page?: number;
+      limit?: number;
+    }) => {
       const qs = new URLSearchParams();
       if (params?.entityType) qs.set("entityType", params.entityType);
       if (params?.entityId) qs.set("entityId", params.entityId);
+      if (params?.action) qs.set("action", params.action);
+      if (params?.search) qs.set("search", params.search);
+      if (params?.from) qs.set("from", params.from);
+      if (params?.to) qs.set("to", params.to);
+      if (params?.page) qs.set("page", String(params.page));
+      if (params?.limit) qs.set("limit", String(params.limit));
       const query = qs.toString();
-      return request<AuditLog[]>(`/audit-logs${query ? `?${query}` : ""}`);
+      return request<import("./auth-types").AuditLogPaginatedResponse>(
+        `/audit-logs${query ? `?${query}` : ""}`
+      );
     },
   },
 

@@ -31,6 +31,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'page:roles', name: 'Roles', description: 'Access the roles & permissions page', module: 'pages', type: 'page' },
   { key: 'page:tenants', name: 'Tenants', description: 'Access the tenants management page', module: 'pages', type: 'page' },
   { key: 'page:settings', name: 'Settings', description: 'Access the system settings page', module: 'pages', type: 'page' },
+  { key: 'page:activity_logs', name: 'Activity Logs', description: 'Access the activity logs page', module: 'pages', type: 'page' },
 
   // ─── ACTION PERMISSIONS: users ──────────────────────
   { key: 'users:read', name: 'View users', description: 'List and view users within the tenant', module: 'users', type: 'action' },
@@ -125,4 +126,5 @@ export const PAGE_ACTION_MAP: Record<string, string[]> = {
   'page:roles':         ['roles:read', 'permissions:read'],
   'page:tenants':       ['tenants:read'],
   'page:settings':      ['settings:global:read', 'settings:tenant:read'],
+  'page:activity_logs': ['audit_logs:read'],
 };

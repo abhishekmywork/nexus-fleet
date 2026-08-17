@@ -5,6 +5,7 @@ import { Event, EventType } from './event.entity';
 import { EventRule, DEFAULT_EVENT_RULES } from './event-rule.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 export interface EventQueryDto {
   page?: number;
@@ -25,6 +26,7 @@ export class EventService {
     private readonly eventRules: Repository<EventRule>,
     @InjectRepository(GPSDevice)
     private readonly devices: Repository<GPSDevice>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findAll(user: AuthenticatedUser, query: EventQueryDto) {
@@ -74,12 +76,27 @@ export class EventService {
     return this.eventRules.find({ order: { eventType: 'ASC' } });
   }
 
-  async updateRule(id: string, dto: { enabled?: boolean; thresholds?: Record<string, any> }) {
+  async updateRule(
+    id: string,
+    dto: { enabled?: boolean; thresholds?: Record<string, any> },
+    user?: AuthenticatedUser,
+  ) {
     const rule = await this.eventRules.findOne({ where: { id } });
     if (!rule) throw new NotFoundException('Event rule not found');
     if (dto.enabled !== undefined) rule.enabled = dto.enabled;
     if (dto.thresholds !== undefined) rule.thresholds = dto.thresholds;
-    return this.eventRules.save(rule);
+    const saved = await this.eventRules.save(rule);
+
+    if (user) {
+      await this.auditLog.log(user, {
+        action: 'updated',
+        entityType: 'event_rule',
+        entityId: saved.id,
+        entityName: saved.eventType,
+      });
+    }
+
+    return saved;
   }
 
   async acknowledge(id: string, user: AuthenticatedUser) {

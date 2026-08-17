@@ -14,7 +14,14 @@ export class AuditLogController {
   findAll(
     @CurrentUser() actor: AuthenticatedUser,
     @Query() query: AuditLogQueryDto,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.service.findAll(actor, query);
+    return this.service.findAll(
+      actor,
+      query,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 50,
+    );
   }
 }

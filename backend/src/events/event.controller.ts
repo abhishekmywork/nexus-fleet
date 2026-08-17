@@ -40,10 +40,11 @@ export class EventController {
   @Patch('rules/:id')
   @Permissions('events:update')
   async updateRule(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: { enabled?: boolean; thresholds?: Record<string, any> },
   ) {
-    return this.eventService.updateRule(id, dto);
+    return this.eventService.updateRule(id, dto, user);
   }
 
   @Patch(':id/acknowledge')

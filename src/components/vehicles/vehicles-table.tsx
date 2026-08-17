@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { AuditLog, ServingArea, Vehicle } from "@/lib/auth-types";
+import type { ServingArea, Vehicle } from "@/lib/auth-types";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   VehicleFormDialog,
@@ -164,22 +164,12 @@ export function VehiclesTable() {
     null
   );
   const [deleteTarget, setDeleteTarget] = React.useState<Vehicle | null>(null);
-  const [activeTab, setActiveTab] = React.useState<"active" | "trash" | "log">("active");
-  const [logs, setLogs] = React.useState<AuditLog[]>([]);
+  const [activeTab, setActiveTab] = React.useState<"active" | "trash">("active");
   const [importOpen, setImportOpen] = React.useState(false);
   const [statusToggling, setStatusToggling] = React.useState<string | null>(null);
   const [restoreTarget, setRestoreTarget] = React.useState<Vehicle | null>(null);
   const [permDeleteTarget, setPermDeleteTarget] = React.useState<Vehicle | null>(null);
   const isSuperAdmin = user?.isSuperUser === true;
-
-  const loadLogs = React.useCallback(async () => {
-    try {
-      const data = await api.auditLogs.list({ entityType: "vehicle,vehicle_serving_area,vehicle_driver,vehicle_gps_device" });
-      setLogs(data);
-    } catch {
-      // silent
-    }
-  }, []);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -193,7 +183,6 @@ export function VehiclesTable() {
       setVehicles(results[0]);
       setServingAreas(results[1]);
       if (isSuperAdmin && results[2]) setTrashVehicles(results[2]);
-      await loadLogs();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to load vehicles"
@@ -201,7 +190,7 @@ export function VehiclesTable() {
     } finally {
       setLoading(false);
     }
-  }, [loadLogs, isSuperAdmin]);
+  }, [isSuperAdmin]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -217,7 +206,6 @@ export function VehiclesTable() {
         setVehicles(results[0]);
         setServingAreas(results[1]);
         if (isSuperAdmin && results[2]) setTrashVehicles(results[2]);
-        await loadLogs();
       } catch (err) {
         if (!cancelled) {
           toast.error(
@@ -231,7 +219,7 @@ export function VehiclesTable() {
     return () => {
       cancelled = true;
     };
-  }, [loadLogs, isSuperAdmin]);
+  }, [isSuperAdmin]);
 
   const canCreate = can("vehicles:create");
   const canUpdate = can("vehicles:update");
@@ -287,12 +275,6 @@ export function VehiclesTable() {
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE
   );
-
-  const vehicleMap = React.useMemo(() => {
-    const map = new Map<string, Vehicle>();
-    for (const v of vehicles) map.set(v.id, v);
-    return map;
-  }, [vehicles]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -510,7 +492,7 @@ const handleSample = async () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "trash" | "log")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "trash")}>
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
             {isSuperAdmin && (
@@ -523,7 +505,6 @@ const handleSample = async () => {
                 )}
               </TabsTrigger>
             )}
-            <TabsTrigger value="log">Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
@@ -890,70 +871,6 @@ const handleSample = async () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="log">
-            <div className="overflow-x-auto rounded-xl border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Time</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead>Actor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                        No log entries yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {logs.map((log) => {
-                    const vehicle = vehicleMap.get(log.entityId);
-                    const actionColor =
-                      log.action === "assigned" || log.action === "restored" || log.action === "created"
-                        ? "success"
-                        : log.action === "permanently_deleted"
-                          ? "destructive"
-                          : "secondary";
-                    const typeLabel =
-                      log.entityType === "vehicle"
-                        ? "Vehicle"
-                        : log.entityType === "vehicle_serving_area"
-                          ? "Serving Area"
-                          : log.entityType === "vehicle_driver"
-                            ? "Driver"
-                            : "GPS Device";
-                    const details = log.entityName || vehicle?.plateNumber || log.entityId;
-                    const extra = log.relatedName ? ` → ${log.relatedName}` : "";
-                    return (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-muted-foreground whitespace-nowrap">
-                          {relativeTime(log.createdAt)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={actionColor as any} className="capitalize">
-                            {log.action.replace(/_/g, " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {typeLabel}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {details}{extra}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {log.actorEmail ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
         </Tabs>
       </CardContent>
 

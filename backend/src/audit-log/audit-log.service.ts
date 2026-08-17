@@ -38,6 +38,7 @@ export class AuditLogService {
   async findAll(
     actor: AuthenticatedUser,
     query: AuditLogQueryDto,
+    page = 1,
     limit = 50,
   ) {
     const qb = this.logs.createQueryBuilder('l');
@@ -64,8 +65,40 @@ export class AuditLogService {
     if (query.entityId) {
       qb.andWhere('l.entityId = :entityId', { entityId: query.entityId });
     }
+    if (query.action) {
+      const actions = query.action.split(',').map((a) => a.trim());
+      if (actions.length === 1) {
+        qb.andWhere('l.action = :action', { action: actions[0] });
+      } else {
+        qb.andWhere('l.action IN (:...actions)', { actions });
+      }
+    }
+    if (query.search) {
+      qb.andWhere('(l.entityName ILIKE :search OR l.actorEmail ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
+    }
+    if (query.from) {
+      qb.andWhere('l.createdAt >= :from', { from: query.from });
+    }
+    if (query.to) {
+      qb.andWhere('l.createdAt <= :to', { to: query.to });
+    }
 
-    return qb.orderBy('l.createdAt', 'DESC').take(limit).getMany();
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const skip = (safePage - 1) * safeLimit;
+
+    const [data, total] = await qb
+      .orderBy('l.createdAt', 'DESC')
+      .skip(skip)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    return {
+      data,
+      meta: { page: safePage, limit: safeLimit, total, totalPages: Math.ceil(total / safeLimit) },
+    };
   }
 
   async purgeOldLogs(): Promise<number> {

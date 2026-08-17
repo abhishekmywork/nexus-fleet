@@ -19,7 +19,7 @@ import { ImportDialog } from "@/components/common/import-dialog";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { AuditLog, Driver, Vehicle } from "@/lib/auth-types";
+import type { Driver, Vehicle } from "@/lib/auth-types";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   DriverFormDialog,
@@ -78,21 +78,6 @@ function fullName(driver: Driver) {
   return `${driver.firstName} ${driver.lastName}`.trim();
 }
 
-function timeAgo(dateString: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateString).getTime()) / 1000
-  );
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
 function SortHeader({
   column,
   active,
@@ -138,18 +123,8 @@ export function DriversTable() {
   const [editingDriver, setEditingDriver] = React.useState<Driver | null>(
     null
   );
-  const [activeTab, setActiveTab] = React.useState<"active" | "log">("active");
-  const [logs, setLogs] = React.useState<AuditLog[]>([]);
+  const [activeTab, setActiveTab] = React.useState<"active">("active");
   const [importOpen, setImportOpen] = React.useState(false);
-
-  const loadLogs = React.useCallback(async () => {
-    try {
-      const data = await api.auditLogs.list({ entityType: "vehicle_driver" });
-      setLogs(data);
-    } catch {
-      // silent
-    }
-  }, []);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -167,8 +142,7 @@ export function DriversTable() {
     } finally {
       setLoading(false);
     }
-    loadLogs();
-  }, [loadLogs]);
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -191,19 +165,6 @@ export function DriversTable() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    api.auditLogs
-      .list({ entityType: "vehicle_driver" })
-      .then((data) => {
-        if (!cancelled) setLogs(data);
-      })
-      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -393,10 +354,9 @@ const handleSample = async () => {
       </CardHeader>
 
       <CardContent>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "log")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active")}>
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="log">Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
@@ -584,70 +544,6 @@ const handleSample = async () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="log">
-            <div className="overflow-x-auto rounded-xl border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Time</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Driver</TableHead>
-                    <TableHead>Vehicle</TableHead>
-                    <TableHead>Actor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        <Loader2
-                          className="mx-auto size-5 animate-spin text-muted-foreground"
-                          aria-hidden="true"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {!loading && logs.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="h-24 text-center text-sm text-muted-foreground"
-                      >
-                        No audit log entries found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {logs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-muted-foreground">
-                        {timeAgo(log.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            log.action === "assigned"
-                              ? "success"
-                              : "destructive"
-                          }
-                        >
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {log.relatedName}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {log.entityName ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {log.actorEmail ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
         </Tabs>
       </CardContent>
 

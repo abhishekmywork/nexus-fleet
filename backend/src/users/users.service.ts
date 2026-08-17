@@ -16,6 +16,7 @@ import {
   CreateUserDto,
   UpdateUserDto,
 } from './dto/user.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 /**
  * Tenant-scoped user administration. Regular users can only see/manage
@@ -26,6 +27,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Role) private readonly roles: Repository<Role>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findById(id: string): Promise<User | null> {
@@ -80,6 +82,14 @@ export class UsersService {
       roles,
     });
     const saved = await this.users.save(user);
+
+    await this.auditLog.log(actor, {
+      action: 'created',
+      entityType: 'user',
+      entityId: saved.id,
+      entityName: saved.email,
+    });
+
     return mapUser(saved);
   }
 
@@ -108,6 +118,14 @@ export class UsersService {
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     });
     const saved = await this.users.save(user);
+
+    await this.auditLog.log(actor, {
+      action: 'updated',
+      entityType: 'user',
+      entityId: saved.id,
+      entityName: saved.email,
+    });
+
     return mapUser(saved);
   }
 
@@ -122,7 +140,17 @@ export class UsersService {
     if (user.isSuperUser) {
       throw new ForbiddenException('Super user accounts cannot be deleted');
     }
+
+    const email = user.email;
+    const userId = user.id;
     await this.users.remove(user);
+
+    await this.auditLog.log(actor, {
+      action: 'deleted',
+      entityType: 'user',
+      entityId: userId,
+      entityName: email,
+    });
   }
 
   async assignRoles(actor: AuthenticatedUser, id: string, dto: AssignRolesDto) {
@@ -132,6 +160,15 @@ export class UsersService {
 
     user.roles = await this.loadRoles(dto.roleKeys);
     const saved = await this.users.save(user);
+
+    await this.auditLog.log(actor, {
+      action: 'updated',
+      entityType: 'user',
+      entityId: saved.id,
+      entityName: saved.email,
+      relatedName: 'roles changed',
+    });
+
     return mapUser(saved);
   }
 

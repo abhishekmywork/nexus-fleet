@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { AuditLog, GPSDevice, Vehicle } from "@/lib/auth-types";
+import type { GPSDevice, Vehicle } from "@/lib/auth-types";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
   GPSDeviceFormDialog,
@@ -74,22 +74,6 @@ type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 8;
 
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
-}
-
 function SortHeader({
   column,
   active,
@@ -131,18 +115,8 @@ export function GPSDevicesTable() {
   const [deleteTarget, setDeleteTarget] = React.useState<GPSDevice | null>(null);
   const [dialogMode, setDialogMode] = React.useState<"create" | "edit">("create");
   const [editingDevice, setEditingDevice] = React.useState<GPSDevice | null>(null);
-  const [activeTab, setActiveTab] = React.useState<"active" | "log">("active");
-  const [logs, setLogs] = React.useState<AuditLog[]>([]);
+  const [activeTab, setActiveTab] = React.useState<"active">("active");
   const [importOpen, setImportOpen] = React.useState(false);
-
-  const loadLogs = React.useCallback(async () => {
-    try {
-      const data = await api.auditLogs.list({ entityType: "vehicle_gps_device" });
-      setLogs(data);
-    } catch {
-      // silent
-    }
-  }, []);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -153,13 +127,12 @@ export function GPSDevicesTable() {
       ]);
       setDevices(deviceList);
       setVehicles(vehicleList);
-      await loadLogs();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load GPS devices");
     } finally {
       setLoading(false);
     }
-  }, [loadLogs]);
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -172,8 +145,6 @@ export function GPSDevicesTable() {
         if (cancelled) return;
         setDevices(deviceList);
         setVehicles(vehicleList);
-        const logData = await api.auditLogs.list({ entityType: "vehicle_gps_device" });
-        if (!cancelled) setLogs(logData);
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof Error ? err.message : "Failed to load GPS devices");
@@ -348,10 +319,9 @@ const handleSample = async () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "log")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active")}>
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="log">Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-4">
@@ -515,47 +485,6 @@ const handleSample = async () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="log">
-            <div className="overflow-x-auto rounded-xl border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Time</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Device</TableHead>
-                    <TableHead>Vehicle</TableHead>
-                    <TableHead>Actor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                        No log entries yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {logs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-muted-foreground">
-                        {relativeTime(log.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={log.action === "assigned" ? "success" : "destructive"}>
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{log.entityName ?? log.entityId}</TableCell>
-                      <TableCell>{log.relatedName}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {log.actorEmail ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </TabsContent>
         </Tabs>
       </CardContent>
 

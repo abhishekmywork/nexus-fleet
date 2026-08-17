@@ -16,6 +16,7 @@ import {
   Fence,
   Map,
   ClipboardList,
+  ScrollText,
 } from "lucide-react";
 
 export interface NavItem {
@@ -74,6 +75,9 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     label: "System",
-    items: [{ title: "Settings", href: "/settings", icon: Settings, permission: "page:settings" }],
+    items: [
+      { title: "Activity Logs", href: "/activity-logs", icon: ScrollText, permission: "page:activity_logs" },
+      { title: "Settings", href: "/settings", icon: Settings, permission: "page:settings" },
+    ],
   },
 ];

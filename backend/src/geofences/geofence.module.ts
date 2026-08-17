@@ -5,9 +5,10 @@ import { Tenant } from '../tenants/tenant.entity';
 import { GeofenceService } from './geofence.service';
 import { GeofenceImportService } from './geofence-import.service';
 import { GeofenceController } from './geofence.controller';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Geofence, Tenant])],
+  imports: [TypeOrmModule.forFeature([Geofence, Tenant]), AuditLogModule],
   controllers: [GeofenceController],
   providers: [GeofenceService, GeofenceImportService],
   exports: [GeofenceService, GeofenceImportService],

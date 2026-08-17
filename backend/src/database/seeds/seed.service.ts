@@ -100,7 +100,7 @@ export class SeedService {
           'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:serving_areas', 'page:drivers', 'page:gps_devices',
           'page:telemetry', 'page:events', 'page:geofences',
-          'page:users', 'page:products', 'page:roles', 'page:settings',
+          'page:users', 'page:products', 'page:roles', 'page:settings', 'page:activity_logs',
           // Action permissions
           'users:read', 'users:create', 'users:update', 'users:delete',
           'roles:read', 'roles:create', 'roles:update', 'permissions:read',
@@ -123,9 +123,10 @@ export class SeedService {
           // Page permissions
           'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:drivers', 'page:telemetry', 'page:events', 'page:geofences',
-          'page:users', 'page:settings',
+          'page:users', 'page:settings', 'page:activity_logs',
           // Action permissions
           'users:read', 'users:update', 'telemetry:read', 'events:read', 'geofences:read',
+          'audit_logs:read',
           'notifications:read', 'settings:tenant:read', 'settings:tenant:update',
         ],
       },
@@ -137,9 +138,9 @@ export class SeedService {
           // Page permissions
           'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:drivers', 'page:telemetry', 'page:events', 'page:geofences',
-          'page:users', 'page:roles', 'page:settings',
+          'page:users', 'page:roles', 'page:settings', 'page:activity_logs',
           // Action permissions
-          'users:read', 'roles:read', 'permissions:read', 'telemetry:read',
+          'users:read', 'roles:read', 'permissions:read', 'telemetry:read', 'audit_logs:read',
           'events:read', 'geofences:read', 'notifications:read', 'settings:tenant:read',
         ],
       },

@@ -10,6 +10,7 @@ import { ServingArea } from './serving-area.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { CreateServingAreaDto, UpdateServingAreaDto } from './dto/serving-area.dto';
 import { ExcelService, ExcelColumn, ImportError } from '../common/excel/excel.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 const AREA_COLUMNS: ExcelColumn[] = [
   { header: 'Name', key: 'name', width: 30 },
@@ -22,6 +23,7 @@ export class ServingAreasService {
     @InjectRepository(ServingArea)
     private readonly areas: Repository<ServingArea>,
     private readonly excelService: ExcelService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findAll(actor: AuthenticatedUser, tenantId?: string) {
@@ -66,7 +68,16 @@ export class ServingAreasService {
       description: dto.description ?? null,
       tenantId,
     });
-    return this.areas.save(area);
+    const saved = await this.areas.save(area);
+
+    await this.auditLog.log(actor, {
+      action: 'created',
+      entityType: 'serving_area',
+      entityId: saved.id,
+      entityName: saved.name,
+    });
+
+    return saved;
   }
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateServingAreaDto) {
@@ -85,14 +96,33 @@ export class ServingAreasService {
       ...(dto.name !== undefined && { name: dto.name }),
       ...(dto.description !== undefined && { description: dto.description }),
     });
-    return this.areas.save(area);
+    const saved = await this.areas.save(area);
+
+    await this.auditLog.log(actor, {
+      action: 'updated',
+      entityType: 'serving_area',
+      entityId: saved.id,
+      entityName: saved.name,
+    });
+
+    return saved;
   }
 
   async remove(actor: AuthenticatedUser, id: string): Promise<void> {
     const area = await this.areas.findOne({ where: { id } });
     if (!area) throw new NotFoundException('Serving area not found');
     this.assertCanAccess(actor, area);
+
+    const areaId = area.id;
+    const areaName = area.name;
     await this.areas.remove(area);
+
+    await this.auditLog.log(actor, {
+      action: 'deleted',
+      entityType: 'serving_area',
+      entityId: areaId,
+      entityName: areaName,
+    });
   }
 
   async exportExcel(actor: AuthenticatedUser): Promise<Buffer> {

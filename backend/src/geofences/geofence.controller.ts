@@ -57,16 +57,17 @@ export class GeofenceController {
   @Put(':id')
   @Permissions('geofences:update')
   async update(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
     @Body() dto: Partial<CreateGeofenceDto>,
   ) {
-    return this.geofenceService.update(id, dto);
+    return this.geofenceService.update(id, dto, user);
   }
 
   @Delete(':id')
   @Permissions('geofences:delete')
-  async remove(@Param('id') id: string) {
-    return this.geofenceService.remove(id);
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.geofenceService.remove(id, user);
   }
 
   @Post('import')

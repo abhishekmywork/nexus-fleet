@@ -246,12 +246,27 @@ export interface UpdateGPSDeviceDto {
 
 export interface AuditLog {
   id: string;
-  action: "assigned" | "unassigned" | "soft_deleted" | "restored" | "permanently_deleted" | "created" | "updated";
+  action:
+    | "assigned"
+    | "unassigned"
+    | "soft_deleted"
+    | "restored"
+    | "permanently_deleted"
+    | "created"
+    | "updated"
+    | "deleted";
   entityType:
+    | "vehicle"
     | "vehicle_serving_area"
     | "vehicle_driver"
     | "vehicle_gps_device"
-    | "vehicle";
+    | "tenant"
+    | "user"
+    | "role"
+    | "serving_area"
+    | "geofence"
+    | "event_rule"
+    | "setting";
   entityId: string;
   relatedId: string | null;
   relatedName: string | null;
@@ -260,6 +275,16 @@ export interface AuditLog {
   actorEmail: string | null;
   tenantId: string;
   createdAt: string;
+}
+
+export interface AuditLogPaginatedResponse {
+  data: AuditLog[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export type EventType =

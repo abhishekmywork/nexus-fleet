@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Role } from './role.entity';
 import { Permission } from '../permissions/permission.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import {
   AssignPermissionsDto,
   CreateRoleDto,
@@ -39,6 +41,7 @@ export class RolesService {
     @InjectRepository(Role) private readonly roles: Repository<Role>,
     @InjectRepository(Permission)
     private readonly permissions: Repository<Permission>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async findAll() {
@@ -58,7 +61,7 @@ export class RolesService {
     return mapRole(role);
   }
 
-  async create(dto: CreateRoleDto) {
+  async create(dto: CreateRoleDto, actor?: AuthenticatedUser) {
     const existing = await this.roles.findOne({ where: { key: dto.key } });
     if (existing) throw new ConflictException(`Role key ${dto.key} already exists`);
 
@@ -75,10 +78,21 @@ export class RolesService {
         permissions,
       }),
     );
-    return this.findOne(role.id);
+    const result = await this.findOne(role.id);
+
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'created',
+        entityType: 'role',
+        entityId: role.id,
+        entityName: role.name,
+      });
+    }
+
+    return result;
   }
 
-  async update(id: string, dto: UpdateRoleDto) {
+  async update(id: string, dto: UpdateRoleDto, actor?: AuthenticatedUser) {
     const role = await this.roles.findOne({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
     this.assertEditable(role);
@@ -88,23 +102,55 @@ export class RolesService {
       ...(dto.description !== undefined && { description: dto.description }),
     });
     await this.roles.save(role);
-    return this.findOne(id);
+    const result = await this.findOne(id);
+
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'updated',
+        entityType: 'role',
+        entityId: role.id,
+        entityName: role.name,
+      });
+    }
+
+    return result;
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor?: AuthenticatedUser): Promise<void> {
     const role = await this.roles.findOne({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
     this.assertEditable(role);
     await this.roles.remove(role);
+
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'deleted',
+        entityType: 'role',
+        entityId: role.id,
+        entityName: role.name,
+      });
+    }
   }
 
-  async assignPermissions(id: string, dto: AssignPermissionsDto) {
+  async assignPermissions(id: string, dto: AssignPermissionsDto, actor?: AuthenticatedUser) {
     const role = await this.roles.findOne({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
 
     role.permissions = await this.loadPermissions(dto.permissionKeys);
     await this.roles.save(role);
-    return this.findOne(id);
+    const result = await this.findOne(id);
+
+    if (actor) {
+      await this.auditLog.log(actor, {
+        action: 'updated',
+        entityType: 'role',
+        entityId: role.id,
+        entityName: role.name,
+        relatedName: 'permissions changed',
+      });
+    }
+
+    return result;
   }
 
   private assertEditable(role: Role) {
