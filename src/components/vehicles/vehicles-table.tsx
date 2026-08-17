@@ -174,7 +174,7 @@ export function VehiclesTable() {
 
   const loadLogs = React.useCallback(async () => {
     try {
-      const data = await api.auditLogs.list({ entityType: "vehicle_serving_area" });
+      const data = await api.auditLogs.list({ entityType: "vehicle,vehicle_serving_area,vehicle_driver,vehicle_gps_device" });
       setLogs(data);
     } catch {
       // silent
@@ -897,8 +897,8 @@ const handleSample = async () => {
                   <TableRow className="hover:bg-transparent">
                     <TableHead>Time</TableHead>
                     <TableHead>Action</TableHead>
-                    <TableHead>Vehicle</TableHead>
-                    <TableHead>Area</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Details</TableHead>
                     <TableHead>Actor</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -912,21 +912,37 @@ const handleSample = async () => {
                   )}
                   {logs.map((log) => {
                     const vehicle = vehicleMap.get(log.entityId);
+                    const actionColor =
+                      log.action === "assigned" || log.action === "restored" || log.action === "created"
+                        ? "success"
+                        : log.action === "permanently_deleted"
+                          ? "destructive"
+                          : "secondary";
+                    const typeLabel =
+                      log.entityType === "vehicle"
+                        ? "Vehicle"
+                        : log.entityType === "vehicle_serving_area"
+                          ? "Serving Area"
+                          : log.entityType === "vehicle_driver"
+                            ? "Driver"
+                            : "GPS Device";
+                    const details = log.entityName || vehicle?.plateNumber || log.entityId;
+                    const extra = log.relatedName ? ` → ${log.relatedName}` : "";
                     return (
                       <TableRow key={log.id}>
                         <TableCell className="text-muted-foreground whitespace-nowrap">
                           {relativeTime(log.createdAt)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={log.action === "assigned" ? "success" : "destructive"} className="capitalize">
-                            {log.action}
+                          <Badge variant={actionColor as any} className="capitalize">
+                            {log.action.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-medium">
-                          {vehicle ? vehicle.plateNumber : log.entityId}
-                        </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {log.relatedName}
+                          {typeLabel}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {details}{extra}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {log.actorEmail ?? "—"}

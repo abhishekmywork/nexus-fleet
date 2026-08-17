@@ -95,7 +95,16 @@ export class VehiclesService {
       tenantId,
       servingAreas,
     });
-    return this.vehicles.save(vehicle);
+    const saved = await this.vehicles.save(vehicle);
+
+    await this.auditLog.log(actor, {
+      action: 'created',
+      entityType: 'vehicle',
+      entityId: saved.id,
+      entityName: saved.plateNumber,
+    });
+
+    return saved;
   }
 
   async update(actor: AuthenticatedUser, id: string, dto: UpdateVehicleDto) {
@@ -125,7 +134,27 @@ export class VehiclesService {
       ...(dto.status !== undefined && { status: dto.status }),
       ...(dto.notes !== undefined && { notes: dto.notes }),
     });
-    return this.vehicles.save(vehicle);
+    const saved = await this.vehicles.save(vehicle);
+
+    const changedFields: string[] = [];
+    if (dto.plateNumber !== undefined && dto.plateNumber !== vehicle.plateNumber) changedFields.push('plateNumber');
+    if (dto.make !== undefined) changedFields.push('make');
+    if (dto.model !== undefined) changedFields.push('model');
+    if (dto.year !== undefined) changedFields.push('year');
+    if (dto.status !== undefined) changedFields.push('status');
+    if (dto.notes !== undefined) changedFields.push('notes');
+
+    if (changedFields.length > 0) {
+      await this.auditLog.log(actor, {
+        action: 'updated',
+        entityType: 'vehicle',
+        entityId: vehicle.id,
+        entityName: vehicle.plateNumber,
+        relatedName: changedFields.join(', '),
+      });
+    }
+
+    return saved;
   }
 
   async remove(actor: AuthenticatedUser, id: string): Promise<void> {

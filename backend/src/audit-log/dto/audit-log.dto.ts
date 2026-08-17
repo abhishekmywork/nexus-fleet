@@ -1,7 +1,7 @@
 import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateAuditLogDto {
-  @IsIn(['assigned', 'unassigned', 'soft_deleted', 'restored', 'permanently_deleted'])
+  @IsIn(['assigned', 'unassigned', 'soft_deleted', 'restored', 'permanently_deleted', 'created', 'updated'])
   action!: string;
 
   @IsIn(['vehicle_serving_area', 'vehicle_driver', 'vehicle_gps_device', 'vehicle'])
@@ -25,7 +25,7 @@ export class CreateAuditLogDto {
 
 export class AuditLogQueryDto {
   @IsOptional()
-  @IsIn(['vehicle_serving_area', 'vehicle_driver', 'vehicle_gps_device'])
+  @IsIn(['vehicle_serving_area', 'vehicle_driver', 'vehicle_gps_device', 'vehicle'])
   entityType?: string;
 
   @IsOptional()

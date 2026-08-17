@@ -54,9 +54,12 @@ export class AuditLogService {
     }
 
     if (query.entityType) {
-      qb.andWhere('l.entityType = :entityType', {
-        entityType: query.entityType,
-      });
+      const types = query.entityType.split(',').map((t) => t.trim());
+      if (types.length === 1) {
+        qb.andWhere('l.entityType = :entityType', { entityType: types[0] });
+      } else {
+        qb.andWhere('l.entityType IN (:...entityTypes)', { entityTypes: types });
+      }
     }
     if (query.entityId) {
       qb.andWhere('l.entityId = :entityId', { entityId: query.entityId });

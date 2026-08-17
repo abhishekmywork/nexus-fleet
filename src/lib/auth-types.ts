@@ -246,14 +246,15 @@ export interface UpdateGPSDeviceDto {
 
 export interface AuditLog {
   id: string;
-  action: "assigned" | "unassigned";
+  action: "assigned" | "unassigned" | "soft_deleted" | "restored" | "permanently_deleted" | "created" | "updated";
   entityType:
     | "vehicle_serving_area"
     | "vehicle_driver"
-    | "vehicle_gps_device";
+    | "vehicle_gps_device"
+    | "vehicle";
   entityId: string;
-  relatedId: string;
-  relatedName: string;
+  relatedId: string | null;
+  relatedName: string | null;
   entityName: string | null;
   actorId: string;
   actorEmail: string | null;

@@ -11,7 +11,7 @@ export type AuditEntityType =
   | 'vehicle_gps_device'
   | 'vehicle';
 
-export type AuditAction = 'assigned' | 'unassigned' | 'soft_deleted' | 'restored' | 'permanently_deleted';
+export type AuditAction = 'assigned' | 'unassigned' | 'soft_deleted' | 'restored' | 'permanently_deleted' | 'created' | 'updated';
 
 @Entity('audit_logs')
 export class AuditLog {
