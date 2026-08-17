@@ -13,6 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { User } from '../users/user.entity';
 import { Role } from '../roles/role.entity';
 import { Tenant } from '../tenants/tenant.entity';
+import { TenantSubscription } from '../subscriptions/tenant-subscription.entity';
 import { RefreshToken } from './refresh-token.entity';
 import { OtpService } from './otp/otp.service';
 import { mapUser } from '../common/mappers/user.mapper';
@@ -29,6 +30,8 @@ export class AuthService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Role) private readonly roles: Repository<Role>,
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
+    @InjectRepository(TenantSubscription)
+    private readonly subscriptions: Repository<TenantSubscription>,
     @InjectRepository(RefreshToken)
     private readonly refreshTokens: Repository<RefreshToken>,
     private readonly jwt: JwtService,
@@ -84,6 +87,16 @@ export class AuthService {
       throw new UnauthorizedException('Account not found in this organization');
     }
 
+    // Check subscription status for non-super users
+    if (!user.isSuperUser && user.tenantId) {
+      const sub = await this.subscriptions.findOne({
+        where: { tenantId: user.tenantId },
+      });
+      if (!sub || sub.status === 'cancelled' || sub.status === 'suspended' || (sub.status === 'active' && sub.endDate < new Date())) {
+        throw new UnauthorizedException('Your organization subscription is not active. Please contact your administrator.');
+      }
+    }
+
     // Second step: challenge with an OTP if 2FA is enabled.
     if (user.twoFactorEnabled) {
       const method = user.twoFactorMethod ?? 'email';
@@ -130,6 +143,16 @@ export class AuthService {
       throw new UnauthorizedException('Two-factor authentication is not enabled');
     }
 
+    // Check subscription status for non-super users
+    if (!user.isSuperUser && user.tenantId) {
+      const sub = await this.subscriptions.findOne({
+        where: { tenantId: user.tenantId },
+      });
+      if (!sub || sub.status === 'cancelled' || sub.status === 'suspended' || (sub.status === 'active' && sub.endDate < new Date())) {
+        throw new UnauthorizedException('Your organization subscription is not active. Please contact your administrator.');
+      }
+    }
+
     const ok = await this.otpService.verify(
       user.id,
       user.twoFactorMethod ?? 'email',
@@ -159,6 +182,16 @@ export class AuthService {
       .getOne();
 
     if (!user || !user.isActive) throw new UnauthorizedException();
+
+    // Check subscription status for non-super users
+    if (!user.isSuperUser && user.tenantId) {
+      const sub = await this.subscriptions.findOne({
+        where: { tenantId: user.tenantId },
+      });
+      if (!sub || sub.status === 'cancelled' || sub.status === 'suspended' || (sub.status === 'active' && sub.endDate < new Date())) {
+        throw new UnauthorizedException('Your organization subscription is not active. Please contact your administrator.');
+      }
+    }
 
     // Rotate: revoke the old token, mint a new pair.
     token.revoked = true;

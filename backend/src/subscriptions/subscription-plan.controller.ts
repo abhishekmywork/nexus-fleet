@@ -16,6 +16,7 @@ export class SubscriptionPlanController {
   }
 
   @Get('active')
+  @Permissions('subscription_plans:read')
   findActive() {
     return this.planService.findActive();
   }

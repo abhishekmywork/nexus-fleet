@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { Role } from '../roles/role.entity';
 import { Tenant } from '../tenants/tenant.entity';
+import { TenantSubscription } from '../subscriptions/tenant-subscription.entity';
 import { RefreshToken } from './refresh-token.entity';
 import { TwoFactorOtp } from './two-factor-otp.entity';
 import { UsersModule } from '../users/users.module';
@@ -31,6 +32,7 @@ import type { AppConfig } from '../config/configuration';
       User,
       Role,
       Tenant,
+      TenantSubscription,
       RefreshToken,
       TwoFactorOtp,
     ]),

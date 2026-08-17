@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { configuration, type AppConfig } from './config/configuration';
@@ -46,6 +47,7 @@ import { SubscriptionModule } from './subscriptions/subscription.module';
       load: [configuration],
       envFilePath: ['.env', '.env.local'],
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<AppConfig, true>) => {

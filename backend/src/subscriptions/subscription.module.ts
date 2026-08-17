@@ -9,6 +9,7 @@ import { SubscriptionPlanController } from './subscription-plan.controller';
 import { TenantSubscriptionService } from './tenant-subscription.service';
 import { TenantSubscriptionController } from './tenant-subscription.controller';
 import { TenantInvitationService } from './tenant-invitation.service';
+import { SubscriptionSchedulerService } from './subscription-scheduler.service';
 import { SettingsModule } from '../settings/settings.module';
 import { NotificationModule } from '../notifications/notification.module';
 
@@ -19,7 +20,7 @@ import { NotificationModule } from '../notifications/notification.module';
     NotificationModule,
   ],
   controllers: [SubscriptionPlanController, TenantSubscriptionController],
-  providers: [SubscriptionPlanService, TenantSubscriptionService, TenantInvitationService],
+  providers: [SubscriptionPlanService, TenantSubscriptionService, TenantInvitationService, SubscriptionSchedulerService],
   exports: [SubscriptionPlanService, TenantSubscriptionService, TenantInvitationService],
 })
 export class SubscriptionModule {}
