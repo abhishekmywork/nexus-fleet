@@ -690,6 +690,20 @@ export const api = {
       (r) => r.json() as Promise<{ name: string; phone: string; email: string }>
     ),
 
+  subscriptionStatus: (tenantSlug: string) =>
+    fetch(`${API_BASE.replace(/\/api\/?$/, "")}/api/subscriptions/status/${tenantSlug}`).then(
+      (r) => r.json() as Promise<{
+        status: string;
+        tenant: { id: string; name: string; slug: string } | null;
+        subscription: {
+          status: string;
+          endDate: string;
+          plan: { name: string; durationDays: number } | null;
+        } | null;
+        contact: { name: string; phone: string; email: string } | null;
+      }>
+    ),
+
   reports: {
     vehicleTrips: (params: { from: string; to: string; deviceId?: string }) =>
       request<any[]>(buildQuery("/reports/vehicle-trips", params)),

@@ -4,6 +4,10 @@ import { Permissions } from '../common/decorators/permissions.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { TenantSubscriptionService } from './tenant-subscription.service';
 import { TenantInvitationService } from './tenant-invitation.service';
+import { GlobalSettingsService } from '../settings/global-settings.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Tenant } from '../tenants/tenant.entity';
 import {
   CreateTenantSubscriptionDto,
   ChangePlanDto,
@@ -18,6 +22,8 @@ export class TenantSubscriptionController {
   constructor(
     private readonly subService: TenantSubscriptionService,
     private readonly inviteService: TenantInvitationService,
+    private readonly settings: GlobalSettingsService,
+    @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
   ) {}
 
   @Get()
@@ -110,5 +116,30 @@ export class TenantSubscriptionController {
   @Post('verify')
   verify(@Body() dto: VerifyInvitationDto) {
     return this.inviteService.verify(dto.tenantId, dto.code);
+  }
+
+  @Public()
+  @Get('status/:tenantSlug')
+  async getTenantStatus(@Param('tenantSlug') tenantSlug: string) {
+    const tenant = await this.tenants.findOne({ where: { slug: tenantSlug } });
+    if (!tenant) {
+      return { status: 'not_found' as const, tenant: null, subscription: null, contact: null };
+    }
+
+    const sub = await this.subService.findByTenantId(tenant.id);
+    const contact = await this.settings.getContactDetails();
+
+    return {
+      status: sub?.status ?? 'none' as const,
+      tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
+      subscription: sub
+        ? {
+            status: sub.status,
+            endDate: sub.endDate,
+            plan: sub.plan ? { name: sub.plan.name, durationDays: sub.plan.durationDays } : null,
+          }
+        : null,
+      contact,
+    };
   }
 }

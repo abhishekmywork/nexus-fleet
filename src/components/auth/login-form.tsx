@@ -86,7 +86,13 @@ export function LoginForm() {
         router.refresh();
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      if (message.includes("subscription is not active") || message.includes("subscription has been")) {
+        const slug = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : "";
+        router.push(`/subscription-blocked?tenant=${encodeURIComponent(slug)}`);
+        return;
+      }
+      toast.error(message);
     } finally {
       setPending(false);
     }
@@ -103,7 +109,13 @@ export function LoginForm() {
       router.replace(hasSubdomain2 ? "/live-map" : "/");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Invalid verification code");
+      const message = err instanceof Error ? err.message : "Invalid verification code";
+      if (message.includes("subscription is not active") || message.includes("subscription has been")) {
+        const slug = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : "";
+        router.push(`/subscription-blocked?tenant=${encodeURIComponent(slug)}`);
+        return;
+      }
+      toast.error(message);
     } finally {
       setPending(false);
     }
