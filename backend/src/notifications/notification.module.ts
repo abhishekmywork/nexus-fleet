@@ -13,6 +13,6 @@ import { SettingsModule } from '../settings/settings.module';
   imports: [TypeOrmModule.forFeature([NotificationSetting, NotificationLog, GPSDevice]), SettingsModule],
   controllers: [NotificationController],
   providers: [EmailService, SmsService, NotificationService],
-  exports: [NotificationService],
+  exports: [NotificationService, EmailService],
 })
 export class NotificationModule {}
