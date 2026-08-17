@@ -1,11 +1,6 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Vehicle } from './vehicle.entity';
 import { ServingArea } from '../serving-areas/serving-area.entity';
 import { Driver } from '../drivers/driver.entity';
@@ -40,15 +35,15 @@ export class VehiclesService {
     private readonly excelService: ExcelService,
   ) {}
 
-  async findAll(actor: AuthenticatedUser, tenantId?: string, includeDeleted = false) {
+  async findAll(actor: AuthenticatedUser, tenantId?: string, deletedOnly = false) {
     const qb = this.vehicles
       .createQueryBuilder('v')
       .leftJoinAndSelect('v.servingAreas', 'area')
       .leftJoinAndSelect('v.driver', 'driver')
       .leftJoinAndSelect('v.gpsDevice', 'device');
 
-    if (includeDeleted) {
-      qb.withDeleted();
+    if (deletedOnly) {
+      qb.withDeleted().andWhere('v.deletedAt IS NOT NULL');
     }
 
     if (actor.isSuperUser) {

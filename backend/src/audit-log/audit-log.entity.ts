@@ -8,9 +8,10 @@ import {
 export type AuditEntityType =
   | 'vehicle_serving_area'
   | 'vehicle_driver'
-  | 'vehicle_gps_device';
+  | 'vehicle_gps_device'
+  | 'vehicle';
 
-export type AuditAction = 'assigned' | 'unassigned';
+export type AuditAction = 'assigned' | 'unassigned' | 'soft_deleted' | 'restored' | 'permanently_deleted';
 
 @Entity('audit_logs')
 export class AuditLog {
@@ -26,11 +27,11 @@ export class AuditLog {
   @Column({ type: 'uuid' })
   entityId: string;
 
-  @Column({ type: 'uuid' })
-  relatedId: string;
+  @Column({ type: 'uuid', nullable: true })
+  relatedId: string | null;
 
-  @Column({ type: 'varchar', length: 120 })
-  relatedName: string;
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  relatedName: string | null;
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   entityName: string | null;
