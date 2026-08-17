@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Patch, Delete, Query } from '@nestj
 import { RequireSuperUser } from '../common/decorators/require-super-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { TenantSubscriptionService } from './tenant-subscription.service';
 import { TenantInvitationService } from './tenant-invitation.service';
 import { GlobalSettingsService } from '../settings/global-settings.service';
@@ -140,6 +142,46 @@ export class TenantSubscriptionController {
           }
         : null,
       contact,
+    };
+  }
+
+  @Get('my')
+  async getMySubscription(@CurrentUser() user: AuthenticatedUser) {
+    if (!user.tenantId) {
+      return { subscription: null, plan: null, usage: null };
+    }
+    const sub = await this.subService.findByTenantId(user.tenantId);
+    if (!sub) {
+      return { subscription: null, plan: null, usage: null };
+    }
+    const usage = await this.subService.getUsage(user.tenantId);
+    return {
+      subscription: {
+        id: sub.id,
+        status: sub.status,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        activatedAt: sub.activatedAt,
+        cancelledAt: sub.cancelledAt,
+        cancelledReason: sub.cancelledReason,
+      },
+      plan: sub.plan
+        ? {
+            id: sub.plan.id,
+            name: sub.plan.name,
+            description: sub.plan.description,
+            durationDays: sub.plan.durationDays,
+            maxUsers: sub.plan.maxUsers,
+            maxVehicles: sub.plan.maxVehicles,
+            maxDevices: sub.plan.maxDevices,
+            features: sub.plan.features,
+          }
+        : null,
+      usage: usage
+        ? {
+            users: usage.users,
+          }
+        : null,
     };
   }
 }

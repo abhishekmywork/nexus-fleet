@@ -34,6 +34,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'page:activity_logs', name: 'Activity Logs', description: 'Access the activity logs page', module: 'pages', type: 'page' },
   { key: 'page:subscription_plans', name: 'Subscription Plans', description: 'Manage subscription plans', module: 'pages', type: 'page' },
   { key: 'page:subscriptions', name: 'Subscriptions', description: 'Manage tenant subscriptions', module: 'pages', type: 'page' },
+  { key: 'page:my_subscription', name: 'My Subscription', description: 'View current subscription status', module: 'pages', type: 'page' },
 
   // ─── ACTION PERMISSIONS: users ──────────────────────
   { key: 'users:read', name: 'View users', description: 'List and view users within the tenant', module: 'users', type: 'action' },
@@ -141,4 +142,5 @@ export const PAGE_ACTION_MAP: Record<string, string[]> = {
   'page:activity_logs': ['audit_logs:read'],
   'page:subscription_plans': ['subscription_plans:read'],
   'page:subscriptions': ['subscriptions:read'],
+  'page:my_subscription': [],
 };

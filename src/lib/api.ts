@@ -704,6 +704,32 @@ export const api = {
       }>
     ),
 
+  mySubscription: () =>
+    request<{
+      subscription: {
+        id: string;
+        status: string;
+        startDate: string;
+        endDate: string;
+        activatedAt: string | null;
+        cancelledAt: string | null;
+        cancelledReason: string | null;
+      } | null;
+      plan: {
+        id: string;
+        name: string;
+        description: string | null;
+        durationDays: number;
+        maxUsers: number | null;
+        maxVehicles: number | null;
+        maxDevices: number | null;
+        features: Record<string, boolean>;
+      } | null;
+      usage: {
+        users: { current: number; limit: number | null };
+      } | null;
+    }>("/subscriptions/my"),
+
   reports: {
     vehicleTrips: (params: { from: string; to: string; deviceId?: string }) =>
       request<any[]>(buildQuery("/reports/vehicle-trips", params)),

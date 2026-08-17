@@ -19,6 +19,7 @@ import {
   ScrollText,
   CreditCard,
   Crown,
+  Receipt,
 } from "lucide-react";
 
 export interface NavItem {
@@ -66,6 +67,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Users", href: "/users", icon: Users, permission: "page:users" },
       { title: "Products", href: "/products", icon: Package, permission: "page:products" },
+      { title: "My Subscription", href: "/my-subscription", icon: Receipt, permission: "page:my_subscription" },
     ],
   },
   {
