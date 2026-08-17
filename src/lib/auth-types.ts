@@ -123,6 +123,7 @@ export interface Vehicle {
   gpsDevice: { id: string; imei: string; model: string } | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 export interface Driver {

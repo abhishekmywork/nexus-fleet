@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import { RequireSuperUser } from '../common/decorators/super-user.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { VehiclesService } from './vehicles.service';
@@ -31,8 +32,9 @@ export class VehiclesController {
   findAll(
     @CurrentUser() actor: AuthenticatedUser,
     @Query('tenantId') tenantId?: string,
+    @Query('includeDeleted') includeDeleted?: string,
   ) {
-    return this.service.findAll(actor, tenantId);
+    return this.service.findAll(actor, tenantId, includeDeleted === 'true');
   }
 
   @Get('export')
@@ -115,6 +117,24 @@ export class VehiclesController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.service.remove(actor, id);
+  }
+
+  @Post(':id/restore')
+  @RequireSuperUser()
+  restore(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.restore(actor, id);
+  }
+
+  @Delete(':id/permanent')
+  @RequireSuperUser()
+  permanentDelete(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.permanentDelete(actor, id);
   }
 
   @Put(':id/areas')

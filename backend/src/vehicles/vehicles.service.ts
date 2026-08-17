@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { Vehicle } from './vehicle.entity';
 import { ServingArea } from '../serving-areas/serving-area.entity';
+import { Driver } from '../drivers/driver.entity';
+import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { ExcelService } from '../common/excel/excel.service';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
@@ -32,16 +34,22 @@ export class VehiclesService {
     @InjectRepository(Vehicle) private readonly vehicles: Repository<Vehicle>,
     @InjectRepository(ServingArea)
     private readonly areas: Repository<ServingArea>,
+    @InjectRepository(Driver) private readonly drivers: Repository<Driver>,
+    @InjectRepository(GPSDevice) private readonly devices: Repository<GPSDevice>,
     private readonly auditLog: AuditLogService,
     private readonly excelService: ExcelService,
   ) {}
 
-  async findAll(actor: AuthenticatedUser, tenantId?: string) {
+  async findAll(actor: AuthenticatedUser, tenantId?: string, includeDeleted = false) {
     const qb = this.vehicles
       .createQueryBuilder('v')
       .leftJoinAndSelect('v.servingAreas', 'area')
       .leftJoinAndSelect('v.driver', 'driver')
       .leftJoinAndSelect('v.gpsDevice', 'device');
+
+    if (includeDeleted) {
+      qb.withDeleted();
+    }
 
     if (actor.isSuperUser) {
       if (tenantId) qb.andWhere('v.tenantId = :tenantId', { tenantId });
@@ -59,6 +67,7 @@ export class VehiclesService {
     const vehicle = await this.vehicles.findOne({
       where: { id },
       relations: ['servingAreas', 'driver', 'gpsDevice'],
+      withDeleted: true,
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
     this.assertCanAccess(actor, vehicle);
@@ -68,6 +77,7 @@ export class VehiclesService {
   async create(actor: AuthenticatedUser, dto: CreateVehicleDto) {
     const existing = await this.vehicles.findOne({
       where: { plateNumber: dto.plateNumber },
+      withDeleted: true,
     });
     if (existing) throw new ConflictException('Plate number already exists');
 
@@ -101,6 +111,7 @@ export class VehiclesService {
     if (dto.plateNumber !== undefined && dto.plateNumber !== vehicle.plateNumber) {
       const dup = await this.vehicles.findOne({
         where: { plateNumber: dto.plateNumber },
+        withDeleted: true,
       });
       if (dup) throw new ConflictException('Plate number already exists');
     }
@@ -126,6 +137,74 @@ export class VehiclesService {
     const vehicle = await this.vehicles.findOne({ where: { id } });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
     this.assertCanAccess(actor, vehicle);
+
+    await this.auditLog.log(actor, {
+      action: 'soft_deleted',
+      entityType: 'vehicle',
+      entityId: vehicle.id,
+      entityName: vehicle.plateNumber,
+    });
+
+    await this.vehicles.softRemove(vehicle);
+  }
+
+  async restore(actor: AuthenticatedUser, id: string) {
+    const vehicle = await this.vehicles.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+    if (!vehicle) throw new NotFoundException('Vehicle not found');
+    if (!vehicle.deletedAt) throw new ConflictException('Vehicle is not deleted');
+
+    if (!actor.isSuperUser) {
+      throw new ForbiddenException('Only super admin can restore vehicles');
+    }
+
+    await this.auditLog.log(actor, {
+      action: 'restored',
+      entityType: 'vehicle',
+      entityId: vehicle.id,
+      entityName: vehicle.plateNumber,
+    });
+
+    await this.vehicles.recover(vehicle);
+    return this.findOne(actor, id);
+  }
+
+  async permanentDelete(actor: AuthenticatedUser, id: string): Promise<void> {
+    const vehicle = await this.vehicles.findOne({
+      where: { id },
+      withDeleted: true,
+      relations: ['driver', 'gpsDevice'],
+    });
+    if (!vehicle) throw new NotFoundException('Vehicle not found');
+    if (!vehicle.deletedAt) {
+      throw new ConflictException('Vehicle must be soft-deleted first');
+    }
+
+    if (!actor.isSuperUser) {
+      throw new ForbiddenException(
+        'Only super admin can permanently delete vehicles',
+      );
+    }
+
+    if (vehicle.driver) {
+      vehicle.driver.vehicleId = null;
+      await this.drivers.save(vehicle.driver);
+    }
+
+    if (vehicle.gpsDevice) {
+      vehicle.gpsDevice.vehicleId = null;
+      await this.devices.save(vehicle.gpsDevice);
+    }
+
+    await this.auditLog.log(actor, {
+      action: 'permanently_deleted',
+      entityType: 'vehicle',
+      entityId: vehicle.id,
+      entityName: vehicle.plateNumber,
+    });
+
     await this.vehicles.remove(vehicle);
   }
 
@@ -145,7 +224,6 @@ export class VehiclesService {
     const newAreas = await this.loadAreas(dto.servingAreaIds);
     const newIds = new Set(newAreas.map((a) => a.id));
 
-    // Log removed areas
     for (const area of vehicle.servingAreas) {
       if (!newIds.has(area.id)) {
         await this.auditLog.log(actor, {
@@ -159,7 +237,6 @@ export class VehiclesService {
       }
     }
 
-    // Log added areas
     for (const area of newAreas) {
       if (!oldIds.has(area.id)) {
         await this.auditLog.log(actor, {
@@ -208,7 +285,7 @@ export class VehiclesService {
           .replace(/[^a-zA-Z0-9]+$/, '');
         row[key] = v;
       }
-      const rowNum = i + 2; // Excel row number (1-indexed header)
+      const rowNum = i + 2;
 
       if (!row.plateNumber || !String(row.plateNumber).trim()) {
         errors.push({ row: rowNum, field: 'plateNumber', message: 'Plate Number is required' });

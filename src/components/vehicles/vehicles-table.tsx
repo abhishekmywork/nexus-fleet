@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   Upload,
@@ -144,8 +145,9 @@ function SortHeader({ column, active, onClick, children }: SortHeaderProps) {
 }
 
 export function VehiclesTable() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
+  const [trashVehicles, setTrashVehicles] = React.useState<Vehicle[]>([]);
   const [servingAreas, setServingAreas] = React.useState<ServingArea[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -162,10 +164,13 @@ export function VehiclesTable() {
     null
   );
   const [deleteTarget, setDeleteTarget] = React.useState<Vehicle | null>(null);
-  const [activeTab, setActiveTab] = React.useState<"active" | "log">("active");
+  const [activeTab, setActiveTab] = React.useState<"active" | "trash" | "log">("active");
   const [logs, setLogs] = React.useState<AuditLog[]>([]);
   const [importOpen, setImportOpen] = React.useState(false);
   const [statusToggling, setStatusToggling] = React.useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = React.useState<Vehicle | null>(null);
+  const [permDeleteTarget, setPermDeleteTarget] = React.useState<Vehicle | null>(null);
+  const isSuperAdmin = user?.isSuperUser === true;
 
   const loadLogs = React.useCallback(async () => {
     try {
@@ -179,12 +184,15 @@ export function VehiclesTable() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [vehicleList, areaList] = await Promise.all([
+      const promises: Promise<any>[] = [
         api.vehicles.list(),
         api.servingAreas.list(),
-      ]);
-      setVehicles(vehicleList);
-      setServingAreas(areaList);
+      ];
+      if (isSuperAdmin) promises.push(api.vehicles.listDeleted());
+      const results = await Promise.all(promises);
+      setVehicles(results[0]);
+      setServingAreas(results[1]);
+      if (isSuperAdmin && results[2]) setTrashVehicles(results[2]);
       await loadLogs();
     } catch (err) {
       toast.error(
@@ -193,19 +201,22 @@ export function VehiclesTable() {
     } finally {
       setLoading(false);
     }
-  }, [loadLogs]);
+  }, [loadLogs, isSuperAdmin]);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [vehicleList, areaList] = await Promise.all([
+        const promises: Promise<any>[] = [
           api.vehicles.list(),
           api.servingAreas.list(),
-        ]);
+        ];
+        if (isSuperAdmin) promises.push(api.vehicles.listDeleted());
+        const results = await Promise.all(promises);
         if (cancelled) return;
-        setVehicles(vehicleList);
-        setServingAreas(areaList);
+        setVehicles(results[0]);
+        setServingAreas(results[1]);
+        if (isSuperAdmin && results[2]) setTrashVehicles(results[2]);
         await loadLogs();
       } catch (err) {
         if (!cancelled) {
@@ -220,7 +231,7 @@ export function VehiclesTable() {
     return () => {
       cancelled = true;
     };
-  }, [loadLogs]);
+  }, [loadLogs, isSuperAdmin]);
 
   const canCreate = can("vehicles:create");
   const canUpdate = can("vehicles:update");
@@ -364,7 +375,7 @@ export function VehiclesTable() {
   const handleDelete = async (vehicle: Vehicle) => {
     try {
       await api.vehicles.remove(vehicle.id);
-      toast.success("Vehicle deleted");
+      toast.success("Vehicle moved to trash");
       setDeleteTarget(null);
       setSelected((prev) => {
         const next = new Set(prev);
@@ -385,7 +396,7 @@ export function VehiclesTable() {
       for (const id of selected) {
         await api.vehicles.remove(id);
       }
-      toast.success(`${selected.size} vehicle(s) deleted`);
+      toast.success(`${selected.size} vehicle(s) moved to trash`);
       setSelected(new Set());
       await load();
     } catch (err) {
@@ -394,6 +405,32 @@ export function VehiclesTable() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRestore = async (vehicle: Vehicle) => {
+    try {
+      await api.vehicles.restore(vehicle.id);
+      toast.success("Vehicle restored");
+      setRestoreTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to restore vehicle"
+      );
+    }
+  };
+
+  const handlePermanentDelete = async (vehicle: Vehicle) => {
+    try {
+      await api.vehicles.permanentDelete(vehicle.id);
+      toast.success("Vehicle permanently deleted");
+      setPermDeleteTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to permanently delete vehicle"
+      );
     }
   };
 
@@ -441,7 +478,7 @@ const handleSample = async () => {
         <div>
           <CardTitle>Vehicles</CardTitle>
           <CardDescription>
-            {vehicles.length} total vehicles · manage fleet and service areas.
+            {vehicles.length} active vehicles{isSuperAdmin && trashVehicles.length > 0 ? ` · ${trashVehicles.length} in trash` : ""} · manage fleet and service areas.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
@@ -473,9 +510,19 @@ const handleSample = async () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "log")}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "trash" | "log")}>
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
+            {isSuperAdmin && (
+              <TabsTrigger value="trash">
+                Trash
+                {trashVehicles.length > 0 && (
+                  <Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-[10px]">
+                    {trashVehicles.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="log">Log</TabsTrigger>
           </TabsList>
 
@@ -764,6 +811,85 @@ const handleSample = async () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="trash" className="space-y-4">
+            <div className="overflow-x-auto rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Plate</TableHead>
+                    <TableHead>Make / Model</TableHead>
+                    <TableHead className="hidden md:table-cell">Year</TableHead>
+                    <TableHead className="hidden lg:table-cell">Status</TableHead>
+                    <TableHead className="hidden md:table-cell">Deleted</TableHead>
+                    <TableHead className="w-[50px] text-right">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                        <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" aria-hidden="true" />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {!loading && trashVehicles.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">
+                        No deleted vehicles.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {trashVehicles.map((vehicle) => (
+                    <TableRow key={vehicle.id}>
+                      <TableCell className="font-medium">{vehicle.plateNumber}</TableCell>
+                      <TableCell>{vehicleLabel(vehicle)}</TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {vehicle.year ?? "—"}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Badge variant={STATUS_VARIANTS[vehicle.status]} className="capitalize">
+                          {vehicle.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {vehicle.deletedAt ? relativeTime(vehicle.deletedAt) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="size-8 text-muted-foreground">
+                              <MoreHorizontal className="size-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => setRestoreTarget(vehicle)}
+                            >
+                              <RotateCcw className="mr-2 size-4" aria-hidden="true" />
+                              Restore
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-destructive focus:text-destructive"
+                              onClick={() => setPermDeleteTarget(vehicle)}
+                            >
+                              <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                              Delete Permanently
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
           <TabsContent value="log">
             <div className="overflow-x-auto rounded-xl border">
               <Table>
@@ -828,7 +954,7 @@ const handleSample = async () => {
         />
       )}
 
-      {/* Delete confirmation */}
+      {/* Delete confirmation (soft delete) */}
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
@@ -837,11 +963,11 @@ const handleSample = async () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete vehicle?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove{" "}
+              This will move{" "}
               <span className="font-semibold">
                 {deleteTarget ? deleteTarget.plateNumber : ""}
               </span>{" "}
-              and all associated data. This action cannot be undone.
+              to trash. You can restore it later from the Trash tab.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -851,6 +977,62 @@ const handleSample = async () => {
               onClick={() => deleteTarget && handleDelete(deleteTarget)}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore confirmation */}
+      <AlertDialog
+        open={restoreTarget !== null}
+        onOpenChange={(o) => !o && setRestoreTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore{" "}
+              <span className="font-semibold">
+                {restoreTarget ? restoreTarget.plateNumber : ""}
+              </span>{" "}
+              back to the active fleet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary text-white hover:bg-primary/90"
+              onClick={() => restoreTarget && handleRestore(restoreTarget)}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Permanent delete confirmation */}
+      <AlertDialog
+        open={permDeleteTarget !== null}
+        onOpenChange={(o) => !o && setPermDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              <span className="font-semibold">
+                {permDeleteTarget ? permDeleteTarget.plateNumber : ""}
+              </span>{" "}
+              and all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => permDeleteTarget && handlePermanentDelete(permDeleteTarget)}
+            >
+              Delete Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -388,12 +388,15 @@ export const api = {
 
   vehicles: {
     list: () => request<Vehicle[]>("/vehicles"),
+    listDeleted: () => request<Vehicle[]>("/vehicles?includeDeleted=true"),
     get: (id: string) => request<Vehicle>(`/vehicles/${id}`),
     create: (dto: CreateVehicleDto) =>
       request<Vehicle>("/vehicles", { method: "POST", body: dto }),
     update: (id: string, dto: UpdateVehicleDto) =>
       request<Vehicle>(`/vehicles/${id}`, { method: "PATCH", body: dto }),
     remove: (id: string) => request<void>(`/vehicles/${id}`, { method: "DELETE" }),
+    restore: (id: string) => request<Vehicle>(`/vehicles/${id}/restore`, { method: "POST" }),
+    permanentDelete: (id: string) => request<void>(`/vehicles/${id}/permanent`, { method: "DELETE" }),
     assignAreas: (id: string, servingAreaIds: string[]) =>
       request<Vehicle>(`/vehicles/${id}/areas`, {
         method: "PUT",
