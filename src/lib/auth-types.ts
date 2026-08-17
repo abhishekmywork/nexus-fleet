@@ -508,3 +508,74 @@ export interface TrailPoint {
   movement: string | null;
   timestamp: string;
 }
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  durationDays: number;
+  maxUsers: number | null;
+  maxVehicles: number | null;
+  maxDevices: number | null;
+  features: Record<string, boolean>;
+  isActive: boolean;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantSubscription {
+  id: string;
+  tenantId: string;
+  planId: string;
+  status: "pending" | "active" | "expired" | "cancelled" | "suspended";
+  startDate: string;
+  endDate: string;
+  activatedAt: string | null;
+  cancelledAt: string | null;
+  cancelledReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  plan?: SubscriptionPlan;
+  tenant?: Tenant;
+}
+
+export interface TenantInvitation {
+  id: string;
+  tenantId: string;
+  email: string;
+  code: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+  tenant?: Tenant;
+}
+
+export interface CreatePlanDto {
+  name: string;
+  slug?: string;
+  description?: string;
+  durationDays: number;
+  maxUsers?: number;
+  maxVehicles?: number;
+  maxDevices?: number;
+  features?: Record<string, boolean>;
+  isActive?: boolean;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdatePlanDto {
+  name?: string;
+  description?: string;
+  durationDays?: number;
+  maxUsers?: number;
+  maxVehicles?: number;
+  maxDevices?: number;
+  features?: Record<string, boolean>;
+  isActive?: boolean;
+  isDefault?: boolean;
+  sortOrder?: number;
+}

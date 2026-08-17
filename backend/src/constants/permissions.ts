@@ -32,6 +32,8 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'page:tenants', name: 'Tenants', description: 'Access the tenants management page', module: 'pages', type: 'page' },
   { key: 'page:settings', name: 'Settings', description: 'Access the system settings page', module: 'pages', type: 'page' },
   { key: 'page:activity_logs', name: 'Activity Logs', description: 'Access the activity logs page', module: 'pages', type: 'page' },
+  { key: 'page:subscription_plans', name: 'Subscription Plans', description: 'Manage subscription plans', module: 'pages', type: 'page' },
+  { key: 'page:subscriptions', name: 'Subscriptions', description: 'Manage tenant subscriptions', module: 'pages', type: 'page' },
 
   // ─── ACTION PERMISSIONS: users ──────────────────────
   { key: 'users:read', name: 'View users', description: 'List and view users within the tenant', module: 'users', type: 'action' },
@@ -103,6 +105,16 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: 'settings:global:update', name: 'Update global settings', description: 'Modify system-wide configuration (super admin only)', module: 'settings', type: 'action' },
   { key: 'settings:tenant:read', name: 'View tenant settings', description: 'View tenant-specific fleet configuration', module: 'settings', type: 'action' },
   { key: 'settings:tenant:update', name: 'Update tenant settings', description: 'Modify tenant-specific fleet configuration', module: 'settings', type: 'action' },
+
+  // ─── ACTION PERMISSIONS: subscription_plans ──────────
+  { key: 'subscription_plans:read', name: 'View subscription plans', description: 'List and view subscription plans', module: 'subscription_plans', type: 'action' },
+  { key: 'subscription_plans:create', name: 'Create subscription plans', description: 'Create new subscription plans', module: 'subscription_plans', type: 'action' },
+  { key: 'subscription_plans:update', name: 'Update subscription plans', description: 'Edit subscription plan details', module: 'subscription_plans', type: 'action' },
+  { key: 'subscription_plans:delete', name: 'Delete subscription plans', description: 'Delete subscription plans', module: 'subscription_plans', type: 'action' },
+
+  // ─── ACTION PERMISSIONS: subscriptions ───────────────
+  { key: 'subscriptions:read', name: 'View subscriptions', description: 'View tenant subscriptions', module: 'subscriptions', type: 'action' },
+  { key: 'subscriptions:update', name: 'Manage subscriptions', description: 'Change plans, extend, suspend, cancel subscriptions', module: 'subscriptions', type: 'action' },
 ];
 
 /**
@@ -127,4 +139,6 @@ export const PAGE_ACTION_MAP: Record<string, string[]> = {
   'page:tenants':       ['tenants:read'],
   'page:settings':      ['settings:global:read', 'settings:tenant:read'],
   'page:activity_logs': ['audit_logs:read'],
+  'page:subscription_plans': ['subscription_plans:read'],
+  'page:subscriptions': ['subscriptions:read'],
 };

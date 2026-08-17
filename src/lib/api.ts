@@ -26,6 +26,11 @@ import type {
   UpdateVehicleDto,
   User,
   Vehicle,
+  SubscriptionPlan,
+  TenantSubscription,
+  TenantInvitation,
+  CreatePlanDto,
+  UpdatePlanDto,
 } from "@/lib/auth-types";
 
 export interface ImportValidationResult<T> {
@@ -706,5 +711,49 @@ export const api = {
       request<any[]>(buildQuery("/reports/driver-activity", params)),
     deviceHealth: (params: { from: string; to: string }) =>
       request<any[]>(buildQuery("/reports/device-health", params)),
+  },
+
+  subscriptionPlans: {
+    list: () => request<SubscriptionPlan[]>("/subscriptions/plans"),
+    get: (id: string) => request<SubscriptionPlan>(`/subscriptions/plans/${id}`),
+    create: (dto: CreatePlanDto) =>
+      request<SubscriptionPlan>("/subscriptions/plans", { method: "POST", body: dto }),
+    update: (id: string, dto: UpdatePlanDto) =>
+      request<SubscriptionPlan>(`/subscriptions/plans/${id}`, { method: "PATCH", body: dto }),
+    remove: (id: string) => request<void>(`/subscriptions/plans/${id}`, { method: "DELETE" }),
+  },
+
+  subscriptions: {
+    list: (tenantId?: string) => {
+      const qs = tenantId ? `?tenantId=${tenantId}` : "";
+      return request<TenantSubscription[]>(`/subscriptions${qs}`);
+    },
+    get: (id: string) => request<TenantSubscription>(`/subscriptions/${id}`),
+    create: (dto: { tenantId: string; planId: string; startDate?: string; endDate?: string }) =>
+      request<TenantSubscription>("/subscriptions", { method: "POST", body: dto }),
+    changePlan: (id: string, dto: { planId: string; endDate?: string }) =>
+      request<TenantSubscription>(`/subscriptions/${id}/change-plan`, { method: "PATCH", body: dto }),
+    extend: (id: string, dto: { endDate: string }) =>
+      request<TenantSubscription>(`/subscriptions/${id}/extend`, { method: "PATCH", body: dto }),
+    suspend: (id: string) =>
+      request<TenantSubscription>(`/subscriptions/${id}/suspend`, { method: "PATCH" }),
+    reactivate: (id: string) =>
+      request<TenantSubscription>(`/subscriptions/${id}/reactivate`, { method: "PATCH" }),
+    cancel: (id: string, reason?: string) =>
+      request<TenantSubscription>(`/subscriptions/${id}/cancel`, { method: "PATCH", body: { reason } }),
+    usage: (tenantId: string) =>
+      request<{ plan: SubscriptionPlan; subscription: TenantSubscription; users: { current: number; limit: number | null } }>(`/subscriptions/usage/${tenantId}`),
+    invitations: {
+      list: (tenantId?: string) => {
+        const qs = tenantId ? `?tenantId=${tenantId}` : "";
+        return request<TenantInvitation[]>(`/subscriptions/invitations/all${qs}`);
+      },
+      create: (dto: { tenantId: string; email: string }) =>
+        request<TenantInvitation>("/subscriptions/invitations", { method: "POST", body: dto }),
+      resend: (tenantId: string) =>
+        request<{ success: boolean; email: string }>(`/subscriptions/invitations/resend/${tenantId}`, { method: "POST" }),
+      verify: (dto: { tenantId: string; code: string }) =>
+        request<{ success: boolean; tenantId: string }>("/subscriptions/verify", { method: "POST", body: dto }),
+    },
   },
 };

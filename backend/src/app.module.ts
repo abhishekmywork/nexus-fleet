@@ -37,6 +37,7 @@ import { SettingsModule } from './settings/settings.module';
 import { LiveMapModule } from './live-map/live-map.module';
 import { ReportsModule } from './reports/reports.module';
 import { MobileModule } from './mobile/mobile.module';
+import { SubscriptionModule } from './subscriptions/subscription.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { MobileModule } from './mobile/mobile.module';
     LiveMapModule,
     ReportsModule,
     MobileModule,
+    SubscriptionModule,
   ],
   providers: [
     SeedService,

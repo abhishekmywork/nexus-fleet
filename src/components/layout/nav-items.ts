@@ -17,6 +17,8 @@ import {
   Map,
   ClipboardList,
   ScrollText,
+  CreditCard,
+  Crown,
 } from "lucide-react";
 
 export interface NavItem {
@@ -71,6 +73,13 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Roles", href: "/roles", icon: ShieldCheck, permission: "page:roles" },
       { title: "Tenants", href: "/tenants", icon: Building2, permission: "page:tenants" },
+    ],
+  },
+  {
+    label: "Billing",
+    items: [
+      { title: "Plans", href: "/subscription-plans", icon: CreditCard, permission: "page:subscription_plans" },
+      { title: "Subscriptions", href: "/subscriptions", icon: Crown, permission: "page:subscriptions" },
     ],
   },
   {
