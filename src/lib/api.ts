@@ -714,13 +714,13 @@ export const api = {
   },
 
   subscriptionPlans: {
-    list: () => request<SubscriptionPlan[]>("/subscriptions/plans"),
-    get: (id: string) => request<SubscriptionPlan>(`/subscriptions/plans/${id}`),
+    list: () => request<SubscriptionPlan[]>("/subscription-plans"),
+    get: (id: string) => request<SubscriptionPlan>(`/subscription-plans/${id}`),
     create: (dto: CreatePlanDto) =>
-      request<SubscriptionPlan>("/subscriptions/plans", { method: "POST", body: dto }),
+      request<SubscriptionPlan>("/subscription-plans", { method: "POST", body: dto }),
     update: (id: string, dto: UpdatePlanDto) =>
-      request<SubscriptionPlan>(`/subscriptions/plans/${id}`, { method: "PATCH", body: dto }),
-    remove: (id: string) => request<void>(`/subscriptions/plans/${id}`, { method: "DELETE" }),
+      request<SubscriptionPlan>(`/subscription-plans/${id}`, { method: "PATCH", body: dto }),
+    remove: (id: string) => request<void>(`/subscription-plans/${id}`, { method: "DELETE" }),
   },
 
   subscriptions: {
