@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Permissions } from '../common/decorators/permissions.decorator';
-import { RequireSuperUser } from '../common/decorators/super-user.decorator';
+import { RequireSuperUser } from '../common/decorators/require-super-user.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { VehiclesService } from './vehicles.service';
