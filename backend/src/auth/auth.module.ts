@@ -9,6 +9,7 @@ import { Tenant } from '../tenants/tenant.entity';
 import { RefreshToken } from './refresh-token.entity';
 import { TwoFactorOtp } from './two-factor-otp.entity';
 import { UsersModule } from '../users/users.module';
+import { SettingsModule } from '../settings/settings.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { TwoFactorService } from './two-factor.service';
@@ -20,6 +21,8 @@ import {
   EmailOtpSender,
 } from './otp/email-otp.sender';
 import { SMS_OTP_SENDER, SmsOtpSender } from './otp/sms-otp.sender';
+import { EmailService } from '../notifications/email.service';
+import { SmsService } from '../notifications/sms.service';
 import type { AppConfig } from '../config/configuration';
 
 @Module({
@@ -32,6 +35,7 @@ import type { AppConfig } from '../config/configuration';
       TwoFactorOtp,
     ]),
     UsersModule,
+    SettingsModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -49,6 +53,8 @@ import type { AppConfig } from '../config/configuration';
     TwoFactorService,
     JwtStrategy,
     OtpService,
+    EmailService,
+    SmsService,
     { provide: EMAIL_OTP_SENDER, useClass: EmailOtpSender },
     { provide: SMS_OTP_SENDER, useClass: SmsOtpSender },
   ],

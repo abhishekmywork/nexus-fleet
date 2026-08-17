@@ -92,6 +92,15 @@ export class UsersService {
       throw new ForbiddenException('Cannot deactivate a super user');
     }
 
+    if (dto.email !== undefined) {
+      const newEmail = dto.email.toLowerCase();
+      if (newEmail !== user.email) {
+        const existing = await this.users.findOne({ where: { email: newEmail } });
+        if (existing) throw new ConflictException('Email is already registered');
+        user.email = newEmail;
+      }
+    }
+
     Object.assign(user, {
       ...(dto.firstName !== undefined && { firstName: dto.firstName }),
       ...(dto.lastName !== undefined && { lastName: dto.lastName }),

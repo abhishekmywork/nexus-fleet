@@ -50,6 +50,10 @@ export class CreateUserDto {
 
 export class UpdateUserDto {
   @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(80)

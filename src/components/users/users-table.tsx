@@ -274,6 +274,7 @@ export function UsersTable() {
     try {
       if (dialogUser) {
         await api.users.update(dialogUser.id, {
+          email: values.email,
           firstName: values.firstName,
           lastName: values.lastName,
           isActive: values.isActive,
