@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  ArrowLeft,
   Fence,
   LogOut,
   Power,
@@ -60,7 +61,7 @@ export function VehicleSidebar({
   onToggleOpen,
 }: VehicleSidebarProps) {
   const [query, setQuery] = React.useState("");
-  const { logout } = useAuth();
+  const { logout, can } = useAuth();
   const movingCount = React.useMemo(
     () => positions.filter((p) => p.movement === "MOVING").length,
     [positions]
@@ -209,17 +210,27 @@ export function VehicleSidebar({
             />
           </div>
 
-          {/* Logout */}
+          {/* Dashboard link or Logout */}
           <div className="border-t p-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full h-7 text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => logout()}
-            >
-              <LogOut className="size-3.5 mr-1.5" />
-              Logout
-            </Button>
+            {can("page:dashboard") ? (
+              <a
+                href="/"
+                className="flex items-center justify-center gap-1.5 w-full h-7 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+              >
+                <ArrowLeft className="size-3.5" />
+                Back to Dashboard
+              </a>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full h-7 text-xs text-muted-foreground hover:text-destructive"
+                onClick={() => logout()}
+              >
+                <LogOut className="size-3.5 mr-1.5" />
+                Logout
+              </Button>
+            )}
           </div>
     </div>
   );
