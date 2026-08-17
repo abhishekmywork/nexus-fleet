@@ -42,6 +42,46 @@ export class TenantSubscriptionController {
     return this.subService.getUsage(tenantId);
   }
 
+  @Get('my')
+  async getMySubscription(@CurrentUser() user: AuthenticatedUser) {
+    if (!user.tenantId) {
+      return { subscription: null, plan: null, usage: null };
+    }
+    const sub = await this.subService.findByTenantId(user.tenantId);
+    if (!sub) {
+      return { subscription: null, plan: null, usage: null };
+    }
+    const usage = await this.subService.getUsage(user.tenantId);
+    return {
+      subscription: {
+        id: sub.id,
+        status: sub.status,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        activatedAt: sub.activatedAt,
+        cancelledAt: sub.cancelledAt,
+        cancelledReason: sub.cancelledReason,
+      },
+      plan: sub.plan
+        ? {
+            id: sub.plan.id,
+            name: sub.plan.name,
+            description: sub.plan.description,
+            durationDays: sub.plan.durationDays,
+            maxUsers: sub.plan.maxUsers,
+            maxVehicles: sub.plan.maxVehicles,
+            maxDevices: sub.plan.maxDevices,
+            features: sub.plan.features,
+          }
+        : null,
+      usage: usage
+        ? {
+            users: usage.users.current,
+          }
+        : null,
+    };
+  }
+
   @Get(':id')
   @RequireSuperUser()
   @Permissions('subscriptions:read')
@@ -142,46 +182,6 @@ export class TenantSubscriptionController {
           }
         : null,
       contact,
-    };
-  }
-
-  @Get('my')
-  async getMySubscription(@CurrentUser() user: AuthenticatedUser) {
-    if (!user.tenantId) {
-      return { subscription: null, plan: null, usage: null };
-    }
-    const sub = await this.subService.findByTenantId(user.tenantId);
-    if (!sub) {
-      return { subscription: null, plan: null, usage: null };
-    }
-    const usage = await this.subService.getUsage(user.tenantId);
-    return {
-      subscription: {
-        id: sub.id,
-        status: sub.status,
-        startDate: sub.startDate,
-        endDate: sub.endDate,
-        activatedAt: sub.activatedAt,
-        cancelledAt: sub.cancelledAt,
-        cancelledReason: sub.cancelledReason,
-      },
-      plan: sub.plan
-        ? {
-            id: sub.plan.id,
-            name: sub.plan.name,
-            description: sub.plan.description,
-            durationDays: sub.plan.durationDays,
-            maxUsers: sub.plan.maxUsers,
-            maxVehicles: sub.plan.maxVehicles,
-            maxDevices: sub.plan.maxDevices,
-            features: sub.plan.features,
-          }
-        : null,
-      usage: usage
-        ? {
-            users: usage.users,
-          }
-        : null,
     };
   }
 }

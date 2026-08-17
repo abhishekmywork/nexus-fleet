@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Users,
-  Package,
   BarChart3,
   Settings,
   ShieldCheck,
@@ -66,7 +65,6 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Management",
     items: [
       { title: "Users", href: "/users", icon: Users, permission: "page:users" },
-      { title: "Products", href: "/products", icon: Package, permission: "page:products" },
       { title: "My Subscription", href: "/my-subscription", icon: Receipt, permission: "page:my_subscription" },
     ],
   },
