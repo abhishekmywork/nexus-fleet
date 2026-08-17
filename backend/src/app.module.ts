@@ -39,6 +39,7 @@ import { LiveMapModule } from './live-map/live-map.module';
 import { ReportsModule } from './reports/reports.module';
 import { MobileModule } from './mobile/mobile.module';
 import { SubscriptionModule } from './subscriptions/subscription.module';
+import { NearestVehicleModule } from './nearest-vehicle/nearest-vehicle.module';
 
 @Module({
   imports: [
@@ -108,6 +109,7 @@ import { SubscriptionModule } from './subscriptions/subscription.module';
     ReportsModule,
     MobileModule,
     SubscriptionModule,
+    NearestVehicleModule,
   ],
   providers: [
     SeedService,

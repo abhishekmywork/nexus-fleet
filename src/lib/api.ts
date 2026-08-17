@@ -609,6 +609,27 @@ export const api = {
     },
   },
 
+  nearestVehicle: {
+    find: (vehicleId: string) =>
+      request<{
+        reference: {
+          id: string;
+          plateNumber: string;
+          make: string;
+          model: string;
+          latitude: number;
+          longitude: number;
+        } | null;
+        results: {
+          vehicle: { id: string; plateNumber: string; make: string; model: string };
+          distance_km: number;
+          duration_min: number;
+          latitude: number;
+          longitude: number;
+        }[];
+      }>(`/nearest-vehicle/${vehicleId}`),
+  },
+
   notifications: {
     getSettings: () =>
       request<import("./auth-types").NotificationSettings | null>(

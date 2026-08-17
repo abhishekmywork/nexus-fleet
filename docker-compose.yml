@@ -66,6 +66,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      OSRM_URL: http://osrm:5000
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,6 +114,16 @@ services:
     depends_on:
       - frontend
       - backend
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./osrm-data:/data
+    command: osrm-routed --algorithm=mld /data/fleet-area.osrm
+    mem_limit: 2g
 
 volumes:
   postgres_data:

@@ -19,6 +19,7 @@ import {
   CreditCard,
   Crown,
   Receipt,
+  Crosshair,
 } from "lucide-react";
 
 export interface NavItem {
@@ -59,6 +60,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { title: "Telemetry", href: "/telemetry", icon: Signal, permission: "page:telemetry" },
       { title: "Events", href: "/events", icon: Bell, permission: "page:events" },
       { title: "Geofences", href: "/geofences", icon: Fence, permission: "page:geofences" },
+      { title: "Nearest Vehicle", href: "/nearest-vehicle", icon: Crosshair, permission: "page:nearest_vehicle" },
     ],
   },
   {

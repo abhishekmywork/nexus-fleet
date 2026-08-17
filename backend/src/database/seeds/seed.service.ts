@@ -100,7 +100,7 @@ export class SeedService {
           'page:live_map', 'page:dashboard', 'page:analytics', 'page:reports',
           'page:vehicles', 'page:serving_areas', 'page:drivers', 'page:gps_devices',
           'page:telemetry', 'page:events', 'page:geofences',
-          'page:users', 'page:roles', 'page:settings', 'page:activity_logs', 'page:my_subscription',
+          'page:users', 'page:roles', 'page:settings', 'page:activity_logs', 'page:my_subscription', 'page:nearest_vehicle',
           // Action permissions
           'users:read', 'users:create', 'users:update', 'users:delete',
           'roles:read', 'roles:create', 'roles:update', 'permissions:read',
