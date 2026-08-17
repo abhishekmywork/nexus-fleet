@@ -50,9 +50,10 @@ export class TenantSubscriptionService {
     const sub = this.subs.create({
       tenantId: dto.tenantId,
       planId: dto.planId,
-      status: 'pending',
+      status: 'active',
       startDate,
       endDate,
+      activatedAt: new Date(),
     });
     return this.subs.save(sub);
   }
