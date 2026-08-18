@@ -145,7 +145,7 @@ export default function NearestVehiclePage() {
     markersRef.current.forEach((m: any) => map.removeLayer(m));
     markersRef.current = [];
 
-    const refIcon = createDetailedMarkerIcon("#ef4444", ref.plateNumber, `${ref.make} ${ref.model}`, "0.00", true);
+    const refIcon = createDetailedMarkerIcon("#ef4444", ref.plateNumber, `${ref.make} ${ref.model}`, 0, true);
     const refMarker = L.marker([ref.latitude, ref.longitude], { icon: refIcon }).addTo(map);
     markersRef.current.push(refMarker);
 
