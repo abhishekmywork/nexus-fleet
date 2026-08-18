@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Crosshair, MapPin, Clock, Loader2, Navigation, AlertCircle } from "lucide-react";
+import { Crosshair, MapPin, Clock, Loader2, Navigation, AlertCircle, Layers } from "lucide-react";
 
 type Vehicle = {
   id: string;
@@ -44,19 +44,31 @@ type NearestResult = {
   longitude: number;
 };
 
-function createMarkerIcon(color: string, label?: string) {
+const TILE_LAYERS = {
+  streets: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", label: "Streets" },
+  satellite: { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", label: "Satellite" },
+  terrain: { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", label: "Terrain" },
+} as const;
+
+type MapStyle = keyof typeof TILE_LAYERS;
+
+function createDetailedMarkerIcon(color: string, plate: string, model: string, distanceKm: number, isRef: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const L = require("leaflet");
   return L.divIcon({
     className: "",
-    html: `<div style="position:relative;display:flex;align-items:center;justify-content:center">
-      <div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+    html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer">
+      <div style="position:absolute;top:-58px;left:50%;transform:translateX(-50%);white-space:nowrap;background:${isRef ? '#fef2f2' : '#f0fdf4'};border:1px solid ${isRef ? '#fca5a5' : '#86efac'};padding:3px 8px;border-radius:6px;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,0.15);pointer-events:none">
+        <div style="font-weight:700;color:${isRef ? '#dc2626' : '#16a34a'};font-size:12px">${plate}</div>
+        <div style="color:#555;font-size:10px">${model}</div>
+        <div style="color:#777;font-size:10px;margin-top:1px">${distanceKm} km${isRef ? ' (reference)' : ''}</div>
       </div>
-      ${label ? `<div style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);white-space:nowrap;background:white;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.3)">${label}</div>` : ""}
+      <div style="width:${isRef ? 32 : 26}px;height:${isRef ? 32 : 26}px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1">
+        <svg width="${isRef ? 16 : 12}" height="${isRef ? 16 : 12}" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>
+      </div>
     </div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [isRef ? 32 : 26, isRef ? 32 : 26],
+    iconAnchor: [isRef ? 16 : 13, isRef ? 16 : 13],
   });
 }
 
@@ -69,14 +81,12 @@ export default function NearestVehiclePage() {
   const [vehiclesLoading, setVehiclesLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [iconsReady, setIconsReady] = React.useState(false);
-  const iconRef = React.useRef<any>(null);
-  const iconNearest = React.useRef<any>(null);
+  const [mapStyle, setMapStyle] = React.useState<MapStyle>("streets");
   const mapRef = React.useRef<any>(null);
+  const tileLayerRef = React.useRef<any>(null);
   const markersRef = React.useRef<any[]>([]);
 
   React.useEffect(() => {
-    iconRef.current = createMarkerIcon("#ef4444", "REF");
-    iconNearest.current = createMarkerIcon("#22c55e");
     setIconsReady(true);
   }, []);
 
@@ -113,8 +123,21 @@ export default function NearestVehiclePage() {
     }
   };
 
+  const handleMapStyleChange = (style: MapStyle) => {
+    setMapStyle(style);
+    if (mapRef.current && tileLayerRef.current) {
+      mapRef.current.removeLayer(tileLayerRef.current);
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const L = require("leaflet");
+      tileLayerRef.current = L.tileLayer(TILE_LAYERS[style].url, {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(mapRef.current);
+    }
+  };
+
   const updateMap = (ref: Reference | null, res: NearestResult[]) => {
-    if (!mapRef.current || !ref || !iconRef.current) return;
+    if (!mapRef.current || !ref) return;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const L = require("leaflet");
     const map = mapRef.current;
@@ -122,11 +145,13 @@ export default function NearestVehiclePage() {
     markersRef.current.forEach((m: any) => map.removeLayer(m));
     markersRef.current = [];
 
-    const refMarker = L.marker([ref.latitude, ref.longitude], { icon: iconRef.current }).addTo(map);
+    const refIcon = createDetailedMarkerIcon("#ef4444", ref.plateNumber, `${ref.make} ${ref.model}`, "0.00", true);
+    const refMarker = L.marker([ref.latitude, ref.longitude], { icon: refIcon }).addTo(map);
     markersRef.current.push(refMarker);
 
     res.forEach((r) => {
-      const m = L.marker([r.latitude, r.longitude], { icon: iconNearest.current }).addTo(map);
+      const icon = createDetailedMarkerIcon("#22c55e", r.vehicle.plateNumber, `${r.vehicle.make} ${r.vehicle.model}`, r.distance_km, false);
+      const m = L.marker([r.latitude, r.longitude], { icon }).addTo(map);
       markersRef.current.push(m);
     });
 
@@ -135,7 +160,7 @@ export default function NearestVehiclePage() {
       ...res.map((r) => [r.latitude, r.longitude] as [number, number]),
     ];
     if (allPoints.length > 1) {
-      map.fitBounds(allPoints, { padding: [40, 40] });
+      map.fitBounds(allPoints, { padding: [50, 50] });
     } else {
       map.setView([ref.latitude, ref.longitude], 14);
     }
@@ -245,23 +270,45 @@ export default function NearestVehiclePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MapPin className="size-5" />
-                Map View
-              </CardTitle>
-              <CardDescription>
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block size-2.5 rounded-full bg-red-500" /> Reference
-                </span>
-                {" · "}
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block size-2.5 rounded-full bg-green-500" /> Nearest
-                </span>
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MapPin className="size-5" />
+                    Map View
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block size-2.5 rounded-full bg-red-500" /> Reference
+                    </span>
+                    {" · "}
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block size-2.5 rounded-full bg-green-500" /> Nearest
+                    </span>
+                  </CardDescription>
+                </div>
+                <Select value={mapStyle} onValueChange={(v) => handleMapStyleChange(v as MapStyle)}>
+                  <SelectTrigger className="w-[130px]">
+                    <Layers className="size-3.5 mr-1" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TILE_LAYERS).map(([key, layer]) => (
+                      <SelectItem key={key} value={key}>{layer.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] overflow-hidden rounded-lg border">
-                {iconsReady && <NearestMapInner ref={mapRef} center={reference} />}
+                {iconsReady && (
+                  <NearestMapInner
+                    ref={mapRef}
+                    center={reference}
+                    mapStyle={mapStyle}
+                    onTileLayerRef={(tl: any) => { tileLayerRef.current = tl; }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -280,8 +327,8 @@ export default function NearestVehiclePage() {
   );
 }
 
-const NearestMapInner = React.forwardRef<any, { center: Reference | null }>(
-  function NearestMapInner({ center }, ref) {
+const NearestMapInner = React.forwardRef<any, { center: Reference | null; mapStyle: MapStyle; onTileLayerRef: (tl: any) => void }>(
+  function NearestMapInner({ center, mapStyle, onTileLayerRef }, ref) {
     const containerRef = React.useRef<HTMLDivElement>(null);
     const mapInstanceRef = React.useRef<any>(null);
 
@@ -300,11 +347,12 @@ const NearestMapInner = React.forwardRef<any, { center: Reference | null }>(
           zoomControl: true,
         });
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap",
+        const tl = L.tileLayer(TILE_LAYERS[mapStyle].url, {
+          attribution: "&copy; OpenStreetMap contributors",
           maxZoom: 19,
         }).addTo(map);
 
+        onTileLayerRef(tl);
         mapInstanceRef.current = map;
         if (typeof ref === "object" && ref) ref.current = map;
       };
