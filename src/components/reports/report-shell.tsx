@@ -148,9 +148,9 @@ export function ReportShell({
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Row 1: Report Type + Date Range + Vehicle + Generate */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <div className="grid gap-2">
+        {/* Row 1: Report Type + Date Range + Vehicle */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-1.5">
             <Label>Report Type</Label>
             <SearchableSelect
               options={reportOptions}
@@ -159,16 +159,16 @@ export function ReportShell({
               placeholder="Select report..."
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             <Label>From</Label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             <Label>To</Label>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
-          {meta.needsVehicle && (
-            <div className="grid gap-2">
+          {meta.needsVehicle ? (
+            <div className="grid gap-1.5">
               <Label>Vehicle</Label>
               <SearchableSelect
                 options={[
@@ -184,53 +184,63 @@ export function ReportShell({
                 placeholder="All Vehicles"
               />
             </div>
-          )}
-          {meta.extraFields?.includes("speedLimit") && (
-            <div className="grid gap-2">
-              <Label>Speed Limit (km/h)</Label>
-              <Input type="number" value={speedLimit} onChange={(e) => setSpeedLimit(e.target.value)} min={1} />
+          ) : (
+            <div className="grid gap-1.5">
+              <Label className="invisible">.</Label>
+              <Button onClick={handleGenerate} disabled={loading} className="w-full">
+                {loading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                Generate
+              </Button>
             </div>
           )}
-          {meta.extraFields?.includes("minDuration") && (
-            <div className="grid gap-2">
-              <Label>Min Duration (min)</Label>
-              <Input type="number" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} min={0} />
-            </div>
-          )}
-          {meta.extraFields?.includes("eventType") && (
-            <div className="grid gap-2">
-              <Label>Event Type</Label>
-              <Select value={eventType} onValueChange={setEventType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Events</SelectItem>
-                  <SelectItem value="SPEED">Speed</SelectItem>
-                  <SelectItem value="IDLE">Idle</SelectItem>
-                  <SelectItem value="GEOFENCE">Geofence</SelectItem>
-                  <SelectItem value="IGNITION">Ignition</SelectItem>
-                  <SelectItem value="MOVEMENT">Movement</SelectItem>
-                  <SelectItem value="SOS">SOS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {typeof children === "function"
-            ? children({ extraParams, setParam })
-            : children}
-          <div className="grid gap-2">
-            <Label className="invisible">.</Label>
-            <Button onClick={handleGenerate} disabled={loading} className="w-full">
-              {loading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Search className="size-4" />
-              )}
-              Generate
-            </Button>
-          </div>
         </div>
+
+        {/* Row 2: Extra fields + Generate (only when vehicle is needed or extra fields exist) */}
+        {(meta.needsVehicle || meta.extraFields?.length) && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {meta.extraFields?.includes("speedLimit") && (
+              <div className="grid gap-1.5">
+                <Label>Speed Limit (km/h)</Label>
+                <Input type="number" value={speedLimit} onChange={(e) => setSpeedLimit(e.target.value)} min={1} />
+              </div>
+            )}
+            {meta.extraFields?.includes("minDuration") && (
+              <div className="grid gap-1.5">
+                <Label>Min Duration (min)</Label>
+                <Input type="number" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} min={0} />
+              </div>
+            )}
+            {meta.extraFields?.includes("eventType") && (
+              <div className="grid gap-1.5">
+                <Label>Event Type</Label>
+                <Select value={eventType} onValueChange={setEventType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Events</SelectItem>
+                    <SelectItem value="SPEED">Speed</SelectItem>
+                    <SelectItem value="IDLE">Idle</SelectItem>
+                    <SelectItem value="GEOFENCE">Geofence</SelectItem>
+                    <SelectItem value="IGNITION">Ignition</SelectItem>
+                    <SelectItem value="MOVEMENT">Movement</SelectItem>
+                    <SelectItem value="SOS">SOS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {typeof children === "function"
+              ? children({ extraParams, setParam })
+              : children}
+            <div className="grid gap-1.5">
+              <Label className="invisible">.</Label>
+              <Button onClick={handleGenerate} disabled={loading} className="w-full">
+                {loading ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                Generate
+              </Button>
+            </div>
+          </div>
+        )}
 
         {data.length > 0 && (
           <div className="flex flex-wrap justify-end gap-2">
