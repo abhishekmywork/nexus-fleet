@@ -321,11 +321,32 @@ export class ReportsService {
     }
 
     const events = await qb.getMany();
+
+    // Collect unique geofence IDs that need name lookup (old events without geofenceName)
+    const geofenceIds = new Set<string>();
+    for (const e of events) {
+      if (!e.metadata?.geofenceName && e.metadata?.geofenceId) {
+        geofenceIds.add(e.metadata.geofenceId);
+      }
+    }
+
+    // Batch lookup geofence names for old events
+    let geofenceMap = new Map<string, string>();
+    if (geofenceIds.size > 0) {
+      const geofences = await this.geofences
+        .createQueryBuilder('gf')
+        .select(['gf.id', 'gf.name'])
+        .where('gf.id IN (:...ids)', { ids: Array.from(geofenceIds) })
+        .getMany();
+      geofenceMap = new Map(geofences.map((gf) => [gf.id, gf.name]));
+    }
+
     return events.map((e) => ({
       plateNumber: (e.device as any)?.vehicle?.plateNumber ?? e.deviceId.slice(0, 8),
       deviceId: e.deviceId,
       eventType: e.eventType,
-      geofenceName: e.metadata?.geofenceName ?? 'Unknown',
+      geofenceName: e.metadata?.geofenceName
+        ?? (e.metadata?.geofenceId ? geofenceMap.get(e.metadata.geofenceId) ?? 'Unknown' : 'Unknown'),
       timestamp: e.startedAt,
       latitude: e.latitude != null ? Number(e.latitude) : null,
       longitude: e.longitude != null ? Number(e.longitude) : null,
@@ -343,9 +364,27 @@ export class ReportsService {
       .andWhere('e.startedAt <= :to', { to: q.to })
       .getMany();
 
+    // Batch lookup geofence names for old events without geofenceName
+    const geofenceIds = new Set<string>();
+    for (const e of events) {
+      if (!e.metadata?.geofenceName && e.metadata?.geofenceId) {
+        geofenceIds.add(e.metadata.geofenceId);
+      }
+    }
+    let geofenceMap = new Map<string, string>();
+    if (geofenceIds.size > 0) {
+      const geofences = await this.geofences
+        .createQueryBuilder('gf')
+        .select(['gf.id', 'gf.name'])
+        .where('gf.id IN (:...ids)', { ids: Array.from(geofenceIds) })
+        .getMany();
+      geofenceMap = new Map(geofences.map((gf) => [gf.id, gf.name]));
+    }
+
     const byGeofence = new Map<string, any[]>();
     for (const e of events) {
-      const name = e.metadata?.geofenceName ?? 'Unknown';
+      const name = e.metadata?.geofenceName
+        ?? (e.metadata?.geofenceId ? geofenceMap.get(e.metadata.geofenceId) ?? 'Unknown' : 'Unknown');
       const arr = byGeofence.get(name) || [];
       arr.push(e);
       byGeofence.set(name, arr);

@@ -102,11 +102,15 @@ export class EventDetectorService {
 
     const geofences = await this.geofenceService.findEnabledForTenant(input.tenantId);
     const wasInside = state?.inGeofence ?? false;
+    const prevGeofenceId = state?.inGeofenceId ?? null;
+    const prevGeofenceName = state?.inGeofenceName ?? null;
 
     let isInsideAny = false;
+    let currentGeofence: { id: string; name: string } | null = null;
     for (const gf of geofences) {
       if (this.geofenceService.isPointInside(input.latitude, input.longitude, gf)) {
         isInsideAny = true;
+        currentGeofence = { id: gf.id, name: gf.name };
         break;
       }
     }
@@ -120,7 +124,11 @@ export class EventDetectorService {
         latitude: input.latitude,
         longitude: input.longitude,
         speed: input.speed ?? null,
-        metadata: { ruleName: 'Geofence Exit' },
+        metadata: {
+          ruleName: 'Geofence Exit',
+          geofenceId: prevGeofenceId,
+          geofenceName: prevGeofenceName ?? 'Unknown',
+        },
         tenantId: input.tenantId,
         startedAt: new Date(ts),
       });
@@ -132,7 +140,11 @@ export class EventDetectorService {
         latitude: input.latitude,
         longitude: input.longitude,
         speed: input.speed ?? null,
-        metadata: { ruleName: 'Geofence Entry' },
+        metadata: {
+          ruleName: 'Geofence Entry',
+          geofenceId: currentGeofence?.id ?? null,
+          geofenceName: currentGeofence?.name ?? 'Unknown',
+        },
         tenantId: input.tenantId,
         startedAt: new Date(ts),
       });
@@ -141,6 +153,8 @@ export class EventDetectorService {
     // Update state
     if (state) {
       state.inGeofence = isInsideAny;
+      state.inGeofenceId = currentGeofence?.id ?? null;
+      state.inGeofenceName = currentGeofence?.name ?? null;
       await this.stateService.setState(input.deviceId, state);
     }
   }

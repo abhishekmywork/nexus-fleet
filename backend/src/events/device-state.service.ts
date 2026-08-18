@@ -14,6 +14,8 @@ export interface DeviceState {
   idleStartTime: string | null;
   lastSpeedReadings: { speed: number; timestamp: string }[];
   inGeofence: boolean;
+  inGeofenceId: string | null;
+  inGeofenceName: string | null;
 }
 
 const STATE_TTL_SECONDS = 86400; // 24h
@@ -75,6 +77,8 @@ export class DeviceStateService {
       idleStartTime: null,
       lastSpeedReadings: [],
       inGeofence: false,
+      inGeofenceId: null,
+      inGeofenceName: null,
     };
     await this.setState(deviceId, fresh);
     return fresh;
