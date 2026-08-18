@@ -20,6 +20,13 @@ conn.on("ready", async () => {
   console.log("\n=== Widen action column to varchar(30) ===");
   await run('docker exec nexus-fleet-postgres-1 psql -U postgres -d nexus_fleet -c "ALTER TABLE audit_logs ALTER COLUMN action TYPE varchar(30);"');
 
+  console.log("\n=== Enable earthdistance extension ===");
+  await run('docker exec nexus-fleet-postgres-1 psql -U postgres -d nexus_fleet -c "CREATE EXTENSION IF NOT EXISTS cube; CREATE EXTENSION IF NOT EXISTS earthdistance;"');
+
+  console.log("\n=== Create performance indexes ===");
+  await run('docker exec nexus-fleet-postgres-1 psql -U postgres -d nexus_fleet -c "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_readings_device_timestamp ON gps_readings (deviceId, timestamp DESC);"');
+  await run('docker exec nexus-fleet-postgres-1 psql -U postgres -d nexus_fleet -c "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_readings_timestamp ON gps_readings (timestamp DESC);"');
+
   console.log("\n=== Rebuild backend ===");
   await run(`cd ${PROJECT} && docker compose build --no-cache backend`);
 

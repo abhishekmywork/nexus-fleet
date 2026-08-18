@@ -141,85 +141,79 @@ export class ReportsService {
     return trips.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }
 
-  // 2. Daily Summary
+  // 2. Daily Summary — SQL aggregation with earthdistance
   async dailySummaryReport(user: AuthenticatedUser, q: ReportQuery) {
     const devices = await this.getDevicesForUser(user);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
-    const qb = this.readings
-      .createQueryBuilder('r')
-      .leftJoinAndSelect('r.device', 'd')
-      .leftJoinAndSelect('d.vehicle', 'v')
-      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
-      .andWhere('r.timestamp >= :from', { from: q.from })
-      .andWhere('r.timestamp <= :to', { to: q.to })
-      .orderBy('r.timestamp', 'ASC');
+    const result = await this.readings.query(`
+      WITH ordered AS (
+        SELECT
+          "deviceId",
+          latitude,
+          longitude,
+          speed,
+          movement,
+          timestamp,
+          LAG(latitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(longitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
+        FROM gps_readings
+        WHERE "deviceId" = ANY($1)
+          AND timestamp >= $2
+          AND timestamp <= $3
+      ),
+      dist_calc AS (
+        SELECT
+          "deviceId",
+          speed,
+          movement,
+          timestamp,
+          prev_lat,
+          prev_lon,
+          prev_ts,
+          CASE
+            WHEN prev_lat IS NOT NULL AND prev_lon IS NOT NULL
+            THEN earth_distance(point(longitude, latitude), point(prev_lon, prev_lat)) / 1000.0
+            ELSE 0
+          END AS dist_km,
+          CASE
+            WHEN prev_ts IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (timestamp - prev_ts))
+            ELSE 0
+          END AS dt_sec
+        FROM ordered
+      )
+      SELECT
+        "deviceId",
+        ROUND(SUM(dist_km)::numeric, 2) AS "totalDistanceKm",
+        ROUND(SUM(CASE WHEN movement = 'MOVING' THEN dt_sec ELSE 0 END)::numeric, 0)::int AS "movingTimeSec",
+        ROUND(SUM(CASE WHEN movement = 'IDLE' THEN dt_sec ELSE 0 END)::numeric, 0)::int AS "idleTimeSec",
+        ROUND(SUM(CASE WHEN movement = 'STOPPED' THEN dt_sec ELSE 0 END)::numeric, 0)::int AS "stopTimeSec",
+        ROUND(AVG(CASE WHEN speed IS NOT NULL THEN speed END)::numeric, 2)::float AS "avgSpeed",
+        ROUND(MAX(COALESCE(speed, 0))::numeric, 2)::float AS "maxSpeed",
+        COUNT(*)::int AS "readingCount"
+      FROM dist_calc
+      GROUP BY "deviceId"
+    `, [deviceIds, q.from, q.to]);
 
-    if (q.deviceId) qb.andWhere('r.deviceId = :deviceId', { deviceId: q.deviceId });
-
-    const readings = await qb.getMany();
-    const byDevice = new Map<string, typeof readings>();
-    for (const r of readings) {
-      const arr = byDevice.get(r.deviceId) || [];
-      arr.push(r);
-      byDevice.set(r.deviceId, arr);
-    }
-
-    const summaries: any[] = [];
-    for (const [deviceId, devs] of byDevice) {
-      const device = devices.find((d) => d.id === deviceId);
-      let totalDist = 0;
-      let movingTime = 0;
-      let idleTime = 0;
-      let stopTime = 0;
-      const speeds: number[] = [];
-      let maxSpeed = 0;
-      let stops = 0;
-      let wasStopped = false;
-
-      for (let i = 1; i < devs.length; i++) {
-        const dist = this.haversine(
-          Number(devs[i - 1].latitude), Number(devs[i - 1].longitude),
-          Number(devs[i].latitude), Number(devs[i].longitude),
-        );
-        totalDist += dist;
-        const dt =
-          (new Date(devs[i].timestamp).getTime() -
-            new Date(devs[i - 1].timestamp).getTime()) /
-          1000;
-        const spd = devs[i].speed != null ? Number(devs[i].speed) : 0;
-        speeds.push(spd);
-        if (spd > maxSpeed) maxSpeed = spd;
-
-        if (devs[i].movement === 'MOVING') {
-          movingTime += dt;
-          wasStopped = false;
-        } else if (devs[i].movement === 'IDLE') {
-          idleTime += dt;
-        } else if (devs[i].movement === 'STOPPED') {
-          stopTime += dt;
-          if (!wasStopped) stops++;
-          wasStopped = true;
-        }
-      }
-
-      const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
-      summaries.push({
-        plateNumber: device?.vehicle?.plateNumber ?? deviceId.slice(0, 8),
-        deviceId,
-        totalDistanceKm: Math.round(totalDist * 100) / 100,
-        movingTimeSec: Math.round(movingTime),
-        idleTimeSec: Math.round(idleTime),
-        stopTimeSec: Math.round(stopTime),
-        avgSpeed: Math.round(avgSpeed * 100) / 100,
-        maxSpeed: Math.round(maxSpeed * 100) / 100,
-        stopCount: stops,
-        readingCount: devs.length,
-      });
-    }
-
-    return summaries;
+    const deviceMap = new Map(devices.map((d) => [d.id, d]));
+    return result.map((r: any) => {
+      const device = deviceMap.get(r.deviceId);
+      return {
+        plateNumber: device?.vehicle?.plateNumber ?? r.deviceId.slice(0, 8),
+        deviceId: r.deviceId,
+        totalDistanceKm: Number(r.totalDistanceKm),
+        movingTimeSec: Number(r.movingTimeSec),
+        idleTimeSec: Number(r.idleTimeSec),
+        stopTimeSec: Number(r.stopTimeSec),
+        avgSpeed: Number(r.avgSpeed) || 0,
+        maxSpeed: Number(r.maxSpeed) || 0,
+        stopCount: 0,
+        readingCount: Number(r.readingCount),
+      };
+    });
   }
 
   // 3. Speed Violation Report
@@ -393,186 +387,222 @@ export class ReportsService {
     }));
   }
 
-  // 9. Driver Activity
+  // 9. Driver Activity — single SQL query (no N+1)
   async driverActivityReport(user: AuthenticatedUser, q: ReportQuery) {
-    const drivers = await this.drivers.find({ relations: ['vehicle'] });
-    const summaries: any[] = [];
+    const driverFilter = q.driverId ? `AND dr.id = '${q.driverId}'` : '';
 
-    for (const driver of drivers) {
-      if (!driver.vehicle) continue;
-      if (q.driverId && driver.id !== q.driverId) continue;
+    const result = await this.readings.query(`
+      WITH readings_with_gap AS (
+        SELECT
+          r."deviceId",
+          r.speed,
+          r.latitude,
+          r.longitude,
+          r.timestamp,
+          LAG(r.timestamp) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_ts,
+          LAG(r.latitude) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lat,
+          LAG(r.longitude) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lon
+        FROM gps_readings r
+        JOIN gps_devices g ON g.id = r."deviceId"
+        JOIN vehicles v ON v.id = g."vehicleId"
+        JOIN drivers dr ON dr."vehicleId" = v.id
+        WHERE r.timestamp >= $1
+          AND r.timestamp <= $2
+          ${driverFilter}
+      ),
+      dist_calc AS (
+        SELECT
+          "deviceId",
+          speed,
+          timestamp,
+          CASE
+            WHEN prev_lat IS NOT NULL AND prev_lon IS NOT NULL
+            THEN earth_distance(point(longitude, latitude), point(prev_lon, prev_lat)) / 1000.0
+            ELSE 0
+          END AS dist_km,
+          CASE
+            WHEN prev_ts IS NOT NULL AND EXTRACT(EPOCH FROM (timestamp - prev_ts)) > 300 THEN 1
+            ELSE 0
+          END AS new_trip
+        FROM readings_with_gap
+      ),
+      per_device AS (
+        SELECT
+          "deviceId",
+          SUM(dist_km) AS total_distance,
+          SUM(new_trip) + 1 AS trip_count,
+          AVG(CASE WHEN speed IS NOT NULL THEN speed END) AS avg_speed,
+          COUNT(*) AS reading_count
+        FROM dist_calc
+        GROUP BY "deviceId"
+      )
+      SELECT
+        dr.id AS "driverId",
+        dr."firstName",
+        dr."lastName",
+        dr."licenseNumber",
+        v."plateNumber",
+        COALESCE(pd.total_distance, 0) AS "totalDistanceKm",
+        COALESCE(pd.trip_count, 0) AS "totalTrips",
+        ROUND(COALESCE(pd.avg_speed, 0)::numeric, 2)::float AS "avgSpeed"
+      FROM drivers dr
+      JOIN vehicles v ON v.id = dr."vehicleId"
+      LEFT JOIN gps_devices g ON g."vehicleId" = v.id
+      LEFT JOIN per_device pd ON pd."deviceId" = g.id
+      WHERE 1=1
+        ${driverFilter}
+      ORDER BY dr."firstName", dr."lastName"
+    `, [q.from, q.to]);
 
-      const device = await this.devices.findOne({
-        where: { vehicleId: driver.vehicle.id },
-      });
-      if (!device) continue;
-
-      const tripReport = await this.vehicleTripReport(user, {
-        ...q,
-        deviceId: device.id,
-      });
-      const eventCount = await this.events.count({
-        where: {
-          deviceId: device.id,
-          startedAt: (() => {
-            const qb = this.events.createQueryBuilder('e');
-            return undefined;
-          })() as any,
-        },
-      });
-
-      const totalDistance = tripReport.reduce((sum: number, t: any) => sum + t.distanceKm, 0);
-      const totalTrips = tripReport.length;
-
-      summaries.push({
-        driverName: `${driver.firstName} ${driver.lastName}`,
-        licenseNumber: driver.licenseNumber,
-        plateNumber: driver.vehicle.plateNumber,
-        totalTrips,
-        totalDistanceKm: Math.round(totalDistance * 100) / 100,
-        avgSpeed: tripReport.length
-          ? Math.round(
-              tripReport.reduce((s: number, t: any) => s + t.avgSpeed, 0) /
-                tripReport.length *
-                100,
-            ) / 100
-          : 0,
-      });
-    }
-
-    return summaries;
+    return result.map((r: any) => ({
+      driverName: `${r.firstName} ${r.lastName}`,
+      licenseNumber: r.licenseNumber,
+      plateNumber: r.plateNumber,
+      totalTrips: Number(r.totalTrips),
+      totalDistanceKm: Math.round(Number(r.totalDistanceKm) * 100) / 100,
+      avgSpeed: Number(r.avgSpeed) || 0,
+    }));
   }
 
-  // 10. Device Health
+  // 10. Device Health — SQL aggregation
   async deviceHealthReport(user: AuthenticatedUser, q: ReportQuery) {
     const devices = await this.getDevicesForUser(user);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
-    const readings = await this.readings
-      .createQueryBuilder('r')
-      .leftJoinAndSelect('r.device', 'd')
-      .leftJoinAndSelect('d.vehicle', 'v')
-      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
-      .andWhere('r.timestamp >= :from', { from: q.from })
-      .andWhere('r.timestamp <= :to', { to: q.to })
-      .orderBy('r.timestamp', 'ASC')
-      .getMany();
+    const result = await this.readings.query(`
+      SELECT
+        "deviceId",
+        COUNT(*)::int AS "readingCount",
+        MIN("batteryV") AS "batteryMin",
+        MAX("batteryV") AS "batteryMax",
+        ROUND(AVG("batteryV")::numeric, 2)::float AS "batteryAvg",
+        MIN("gsmSignal") AS "signalMin",
+        MAX("gsmSignal") AS "signalMax",
+        ROUND(AVG("gsmSignal")::numeric, 2)::float AS "signalAvg",
+        MIN(timestamp) AS "firstReading",
+        MAX(timestamp) AS "lastReading"
+      FROM gps_readings
+      WHERE "deviceId" = ANY($1)
+        AND timestamp >= $2
+        AND timestamp <= $3
+      GROUP BY "deviceId"
+    `, [deviceIds, q.from, q.to]);
 
-    const byDevice = new Map<string, typeof readings>();
-    for (const r of readings) {
-      const arr = byDevice.get(r.deviceId) || [];
-      arr.push(r);
-      byDevice.set(r.deviceId, arr);
-    }
-
-    return Array.from(byDevice.entries()).map(([deviceId, devs]) => {
-      const device = devices.find((d) => d.id === deviceId);
-      const batteries = devs.filter((d) => d.batteryV != null).map((d) => Number(d.batteryV));
-      const signals = devs.filter((d) => d.gsmSignal != null).map((d) => Number(d.gsmSignal));
-
+    const deviceMap = new Map(devices.map((d) => [d.id, d]));
+    return result.map((r: any) => {
+      const device = deviceMap.get(r.deviceId);
       return {
-        plateNumber: device?.vehicle?.plateNumber ?? deviceId.slice(0, 8),
-        deviceId,
+        plateNumber: device?.vehicle?.plateNumber ?? r.deviceId.slice(0, 8),
+        deviceId: r.deviceId,
         imei: device?.imei ?? '',
-        readingCount: devs.length,
-        battery: batteries.length
-          ? {
-              min: Math.min(...batteries),
-              max: Math.max(...batteries),
-              avg: Math.round((batteries.reduce((a, b) => a + b, 0) / batteries.length) * 100) / 100,
-            }
-          : null,
-        signal: signals.length
-          ? {
-              min: Math.min(...signals),
-              max: Math.max(...signals),
-              avg: Math.round((signals.reduce((a, b) => a + b, 0) / signals.length) * 100) / 100,
-            }
-          : null,
-        firstReading: devs[0]?.timestamp,
-        lastReading: devs[devs.length - 1]?.timestamp,
+        readingCount: Number(r.readingCount),
+        battery: r.batteryMin != null ? {
+          min: Number(r.batteryMin),
+          max: Number(r.batteryMax),
+          avg: Number(r.batteryAvg),
+        } : null,
+        signal: r.signalMin != null ? {
+          min: Number(r.signalMin),
+          max: Number(r.signalMax),
+          avg: Number(r.signalAvg),
+        } : null,
+        firstReading: r.firstReading,
+        lastReading: r.lastReading,
       };
     });
   }
 
-  // 11. Travel Distance Report
+  // 11. Travel Distance Report — SQL aggregation with earthdistance
   async travelDistanceReport(user: AuthenticatedUser, q: ReportQuery) {
     const devices = await this.getDevicesForUser(user);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
-    const qb = this.readings
-      .createQueryBuilder('r')
-      .leftJoinAndSelect('r.device', 'd')
-      .leftJoinAndSelect('d.vehicle', 'v')
-      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
-      .andWhere('r.timestamp >= :from', { from: q.from })
-      .andWhere('r.timestamp <= :to', { to: q.to })
-      .orderBy('r.timestamp', 'ASC');
+    const deviceIdFilter = q.deviceId ? `AND r."deviceId" = '${q.deviceId}'` : '';
 
-    if (q.deviceId) qb.andWhere('r.deviceId = :deviceId', { deviceId: q.deviceId });
+    const result = await this.readings.query(`
+      WITH ordered AS (
+        SELECT
+          "deviceId",
+          latitude,
+          longitude,
+          speed,
+          movement,
+          timestamp,
+          LAG(latitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(longitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
+        FROM gps_readings r
+        WHERE "deviceId" = ANY($1)
+          AND timestamp >= $2
+          AND timestamp <= $3
+          ${deviceIdFilter}
+      ),
+      dist_calc AS (
+        SELECT
+          "deviceId",
+          speed,
+          movement,
+          timestamp,
+          prev_ts,
+          CASE
+            WHEN prev_lat IS NOT NULL AND prev_lon IS NOT NULL
+            THEN earth_distance(point(longitude, latitude), point(prev_lon, prev_lat)) / 1000.0
+            ELSE 0
+          END AS dist_km,
+          CASE
+            WHEN prev_ts IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (timestamp - prev_ts))
+            ELSE 0
+          END AS dt_sec
+        FROM ordered
+      ),
+      trip_markers AS (
+        SELECT *,
+          SUM(CASE WHEN prev_ts IS NULL OR EXTRACT(EPOCH FROM (timestamp - prev_ts)) > 300 THEN 1 ELSE 0 END)
+            OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS trip_group
+        FROM dist_calc
+      )
+      SELECT
+        t."deviceId",
+        ROUND(SUM(t.dist_km)::numeric, 2) AS "totalDistanceKm",
+        COUNT(DISTINCT t.trip_group)::int AS "tripCount",
+        ROUND(SUM(CASE WHEN t.movement = 'MOVING' THEN t.dt_sec ELSE 0 END)::numeric, 0)::int AS "movingTimeSec",
+        ROUND(AVG(CASE WHEN t.speed IS NOT NULL THEN t.speed END)::numeric, 2)::float AS "avgSpeed",
+        ROUND(MAX(COALESCE(t.speed, 0))::numeric, 2)::float AS "maxSpeed",
+        MIN(t.timestamp) AS "firstSeen",
+        MAX(t.timestamp) AS "lastSeen",
+        (ARRAY_AGG(t.latitude ORDER BY t.timestamp ASC))[1]::float AS "startLat",
+        (ARRAY_AGG(t.longitude ORDER BY t.timestamp ASC))[1]::float AS "startLon",
+        (ARRAY_AGG(t.latitude ORDER BY t.timestamp DESC))[1]::float AS "endLat",
+        (ARRAY_AGG(t.longitude ORDER BY t.timestamp DESC))[1]::float AS "endLon"
+      FROM trip_markers t
+      GROUP BY t."deviceId"
+      ORDER BY "totalDistanceKm" DESC
+    `, [deviceIds, q.from, q.to]);
 
-    const readings = await qb.getMany();
-    const byDevice = new Map<string, typeof readings>();
-    for (const r of readings) {
-      const arr = byDevice.get(r.deviceId) || [];
-      arr.push(r);
-      byDevice.set(r.deviceId, arr);
-    }
-
-    const results: any[] = [];
-    for (const [deviceId, devs] of byDevice) {
-      const device = devices.find((d) => d.id === deviceId);
-      let totalDist = 0;
-      let movingTime = 0;
-      let tripCount = 0;
-      let lastTripEnd = 0;
-
-      for (let i = 1; i < devs.length; i++) {
-        const gap = new Date(devs[i].timestamp).getTime() - new Date(devs[i - 1].timestamp).getTime();
-        if (gap > 5 * 60 * 1000) {
-          tripCount++;
-        }
-
-        const dist = this.haversine(
-          Number(devs[i - 1].latitude), Number(devs[i - 1].longitude),
-          Number(devs[i].latitude), Number(devs[i].longitude),
-        );
-        totalDist += dist;
-
-        if (devs[i].movement === 'MOVING') {
-          movingTime += gap / 1000;
-        }
-        lastTripEnd = i;
-      }
-
-      if (devs.length >= 2) tripCount++;
-
-      const speeds = devs.filter((d) => d.speed != null).map((d) => Number(d.speed));
-      const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
-      const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
-
-      results.push({
-        plateNumber: device?.vehicle?.plateNumber ?? deviceId.slice(0, 8),
+    const deviceMap = new Map(devices.map((d) => [d.id, d]));
+    return result.map((r: any) => {
+      const device = deviceMap.get(r.deviceId);
+      return {
+        plateNumber: device?.vehicle?.plateNumber ?? r.deviceId.slice(0, 8),
         make: device?.vehicle?.make ?? '',
         model: device?.vehicle?.model ?? '',
-        deviceId,
-        totalDistanceKm: Math.round(totalDist * 100) / 100,
-        tripCount,
-        movingTimeSec: Math.round(movingTime),
-        avgSpeed: Math.round(avgSpeed * 100) / 100,
-        maxSpeed: Math.round(maxSpeed * 100) / 100,
-        firstSeen: devs[0]?.timestamp,
-        lastSeen: devs[devs.length - 1]?.timestamp,
-        startLat: devs[0] ? Number(devs[0].latitude) : null,
-        startLon: devs[0] ? Number(devs[0].longitude) : null,
-        endLat: devs[lastTripEnd] ? Number(devs[lastTripEnd].latitude) : null,
-        endLon: devs[lastTripEnd] ? Number(devs[lastTripEnd].longitude) : null,
-      });
-    }
-
-    return results.sort((a, b) => b.totalDistanceKm - a.totalDistanceKm);
+        deviceId: r.deviceId,
+        totalDistanceKm: Number(r.totalDistanceKm),
+        tripCount: Number(r.tripCount),
+        movingTimeSec: Number(r.movingTimeSec),
+        avgSpeed: Number(r.avgSpeed) || 0,
+        maxSpeed: Number(r.maxSpeed) || 0,
+        firstSeen: r.firstSeen,
+        lastSeen: r.lastSeen,
+        startLat: r.startLat != null ? Number(r.startLat) : null,
+        startLon: r.startLon != null ? Number(r.startLon) : null,
+        endLat: r.endLat != null ? Number(r.endLat) : null,
+        endLon: r.endLon != null ? Number(r.endLon) : null,
+      };
+    });
   }
 
   private haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
