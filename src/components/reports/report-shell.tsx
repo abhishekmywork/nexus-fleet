@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Loader2, Search } from "lucide-react";
 import { ExportToolbar } from "./export-toolbar";
 import { ReportMapDialog } from "./report-map-dialog";
@@ -147,36 +148,28 @@ export function ReportShell({
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-start gap-3 overflow-visible">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Report Type
-            </label>
+        {/* Row 1: Report Type + Date Range + Vehicle + Generate */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-2">
+            <Label>Report Type</Label>
             <SearchableSelect
               options={reportOptions}
               value={reportType}
               onChange={(v) => { if (v) onReportTypeChange(v as string); }}
               placeholder="Select report..."
-              className="w-52"
             />
           </div>
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-40"
-          />
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-40"
-          />
+          <div className="grid gap-2">
+            <Label>From</Label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>To</Label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
           {meta.needsVehicle && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Vehicle
-              </label>
+            <div className="grid gap-2">
+              <Label>Vehicle</Label>
               <SearchableSelect
                 options={[
                   { value: "all", label: "All Vehicles" },
@@ -189,45 +182,26 @@ export function ReportShell({
                 value={selectedVehicleId}
                 onChange={(val) => setSelectedVehicleId(val as string)}
                 placeholder="All Vehicles"
-                className="w-48"
               />
             </div>
           )}
           {meta.extraFields?.includes("speedLimit") && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Speed Limit (km/h)
-              </label>
-              <Input
-                type="number"
-                value={speedLimit}
-                onChange={(e) => setSpeedLimit(e.target.value)}
-                className="w-28"
-                min={1}
-              />
+            <div className="grid gap-2">
+              <Label>Speed Limit (km/h)</Label>
+              <Input type="number" value={speedLimit} onChange={(e) => setSpeedLimit(e.target.value)} min={1} />
             </div>
           )}
           {meta.extraFields?.includes("minDuration") && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Min Duration (min)
-              </label>
-              <Input
-                type="number"
-                value={minDuration}
-                onChange={(e) => setMinDuration(e.target.value)}
-                className="w-28"
-                min={0}
-              />
+            <div className="grid gap-2">
+              <Label>Min Duration (min)</Label>
+              <Input type="number" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} min={0} />
             </div>
           )}
           {meta.extraFields?.includes("eventType") && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Event Type
-              </label>
+            <div className="grid gap-2">
+              <Label>Event Type</Label>
               <Select value={eventType} onValueChange={setEventType}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -245,14 +219,17 @@ export function ReportShell({
           {typeof children === "function"
             ? children({ extraParams, setParam })
             : children}
-          <Button onClick={handleGenerate} disabled={loading}>
-            {loading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Search className="size-4" />
-            )}
-            Generate
-          </Button>
+          <div className="grid gap-2">
+            <Label className="invisible">.</Label>
+            <Button onClick={handleGenerate} disabled={loading} className="w-full">
+              {loading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Search className="size-4" />
+              )}
+              Generate
+            </Button>
+          </div>
         </div>
 
         {data.length > 0 && (
