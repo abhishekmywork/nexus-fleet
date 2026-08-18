@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
@@ -52,14 +52,28 @@ export class NearestVehicleService {
       })
       .getMany();
 
+    const deviceIds = vehicles.filter(v => v.gpsDevice).map(v => v.gpsDevice.id);
+    if (deviceIds.length === 0) {
+      return [];
+    }
+
+    const latestReadings = await this.readings
+      .createQueryBuilder('r')
+      .select('DISTINCT ON (r.deviceId) r.*')
+      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
+      .orderBy('r.deviceId', 'ASC')
+      .addOrderBy('r.timestamp', 'DESC')
+      .getRawMany();
+
+    const readingsMap = new Map<string, typeof latestReadings[0]>();
+    for (const r of latestReadings) {
+      readingsMap.set(r.deviceId, r);
+    }
+
     const result: VehicleWithPosition[] = [];
     for (const v of vehicles) {
       if (!v.gpsDevice) continue;
-      const latest = await this.readings
-        .createQueryBuilder('r')
-        .where('r.deviceId = :deviceId', { deviceId: v.gpsDevice.id })
-        .orderBy('r.timestamp', 'DESC')
-        .getOne();
+      const latest = readingsMap.get(v.gpsDevice.id);
       if (latest && latest.latitude != null && latest.longitude != null) {
         result.push({
           id: v.id,
@@ -81,7 +95,7 @@ export class NearestVehicleService {
     const all = await this.getVehiclePositions(user);
     const ref = all.find((v) => v.id === vehicleId);
     if (!ref) {
-      return { reference: null, results: [] };
+      throw new NotFoundException(`Vehicle ${vehicleId} not found or has no GPS position`);
     }
 
     const others = all.filter((v) => v.id !== vehicleId);
@@ -99,7 +113,6 @@ export class NearestVehicleService {
       };
     }
 
-    // Try OSRM table API for road distances
     const coords = [
       `${ref.longitude},${ref.latitude}`,
       ...others.map((v) => `${v.longitude},${v.latitude}`),
@@ -107,42 +120,49 @@ export class NearestVehicleService {
 
     try {
       const url = `${this.osrmUrl}/table/v1/driving/${coords[0]};${coords.slice(1).join(';')}?annotations=distance,duration`;
-      this.logger.log(`OSRM request: ${url.substring(0, 200)}...`);
-      const resp = await fetch(url);
-      const data = await resp.json();
+      this.logger.log(`OSRM request: ${coords.length} coords`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
 
-      if (data.code === 'Ok' && data.distances && data.durations) {
-        const distances = data.distances[0]; // from reference to all others
-        const durations = data.durations[0];
+      if (!resp.ok) {
+        this.logger.warn(`OSRM HTTP ${resp.status}`);
+      } else {
+        const data = await resp.json();
 
-        const results: NearestResult[] = others
-          .map((v, i) => ({
-            vehicle: { id: v.id, plateNumber: v.plateNumber, make: v.make, model: v.model },
-            distance_km: Math.round((distances[i + 1] / 1000) * 100) / 100,
-            duration_min: Math.round((durations[i + 1] / 60) * 10) / 10,
-            latitude: v.latitude,
-            longitude: v.longitude,
-          }))
-          .sort((a, b) => a.distance_km - b.distance_km);
+        if (data.code === 'Ok' && data.distances && data.durations) {
+          const distances = data.distances[0];
+          const durations = data.durations[0];
 
-        return {
-          reference: {
-            id: ref.id,
-            plateNumber: ref.plateNumber,
-            make: ref.make,
-            model: ref.model,
-            latitude: ref.latitude,
-            longitude: ref.longitude,
-          },
-          results,
-        };
+          const results: NearestResult[] = others
+            .map((v, i) => ({
+              vehicle: { id: v.id, plateNumber: v.plateNumber, make: v.make, model: v.model },
+              distance_km: Math.round((distances[i + 1] / 1000) * 100) / 100,
+              duration_min: Math.round((durations[i + 1] / 60) * 10) / 10,
+              latitude: v.latitude,
+              longitude: v.longitude,
+            }))
+            .sort((a, b) => a.distance_km - b.distance_km);
+
+          return {
+            reference: {
+              id: ref.id,
+              plateNumber: ref.plateNumber,
+              make: ref.make,
+              model: ref.model,
+              latitude: ref.latitude,
+              longitude: ref.longitude,
+            },
+            results,
+          };
+        }
+        this.logger.warn(`OSRM returned: ${data.code}`);
       }
-      this.logger.warn(`OSRM returned: ${data.code}`);
     } catch (err) {
       this.logger.error(`OSRM error: ${err}`);
     }
 
-    // Fallback: straight-line distance using Haversine
     const toRad = (deg: number) => (deg * Math.PI) / 180;
     const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
       const R = 6371;

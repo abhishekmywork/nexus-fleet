@@ -1,4 +1,5 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Permissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 import { NearestVehicleService } from './nearest-vehicle.service';
@@ -8,9 +9,10 @@ export class NearestVehicleController {
   constructor(private readonly nearestService: NearestVehicleService) {}
 
   @Get(':vehicleId')
+  @Permissions('vehicles:read')
   findNearest(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('vehicleId') vehicleId: string,
+    @Param('vehicleId', ParseUUIDPipe) vehicleId: string,
   ) {
     return this.nearestService.findNearest(user, vehicleId);
   }

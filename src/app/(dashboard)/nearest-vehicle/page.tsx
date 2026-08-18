@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Crosshair, MapPin, Clock, Loader2, Navigation } from "lucide-react";
+import { Crosshair, MapPin, Clock, Loader2, Navigation, AlertCircle } from "lucide-react";
 
 type Vehicle = {
   id: string;
@@ -27,6 +27,15 @@ type Vehicle = {
   lastSeen: string | null;
 };
 
+type Reference = {
+  id: string;
+  plateNumber: string;
+  make: string;
+  model: string;
+  latitude: number;
+  longitude: number;
+};
+
 type NearestResult = {
   vehicle: { id: string; plateNumber: string; make: string; model: string };
   distance_km: number;
@@ -36,6 +45,7 @@ type NearestResult = {
 };
 
 function createMarkerIcon(color: string, label?: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const L = require("leaflet");
   return L.divIcon({
     className: "",
@@ -50,28 +60,33 @@ function createMarkerIcon(color: string, label?: string) {
   });
 }
 
-const ICON_REF = createMarkerIcon("#ef4444", "REF");
-const ICON_NEAREST = createMarkerIcon("#22c55e");
-
 export default function NearestVehiclePage() {
   const [allVehicles, setAllVehicles] = React.useState<Vehicle[]>([]);
   const [selectedId, setSelectedId] = React.useState<string>("");
-  const [reference, setReference] = React.useState<any>(null);
+  const [reference, setReference] = React.useState<Reference | null>(null);
   const [results, setResults] = React.useState<NearestResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [vehiclesLoading, setVehiclesLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [iconsReady, setIconsReady] = React.useState(false);
+  const iconRef = React.useRef<any>(null);
+  const iconNearest = React.useRef<any>(null);
   const mapRef = React.useRef<any>(null);
   const markersRef = React.useRef<any[]>([]);
 
-  // Load all vehicles with positions
+  React.useEffect(() => {
+    iconRef.current = createMarkerIcon("#ef4444", "REF");
+    iconNearest.current = createMarkerIcon("#22c55e");
+    setIconsReady(true);
+  }, []);
+
   React.useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        // Use dashboard vehicle positions endpoint
         const data = await api.dashboard.vehiclePositions();
-        setAllVehicles(data.filter((v: any) => v.latitude && v.longitude));
+        setAllVehicles(data.filter((v: Vehicle) => v.latitude && v.longitude));
       } catch {
-        // fallback
+        setError("Failed to load vehicles. Please try again.");
       } finally {
         setVehiclesLoading(false);
       }
@@ -82,40 +97,42 @@ export default function NearestVehiclePage() {
   const handleSearch = async () => {
     if (!selectedId) return;
     setLoading(true);
+    setError(null);
     try {
       const data = await api.nearestVehicle.find(selectedId);
       setReference(data.reference);
       setResults(data.results);
       updateMap(data.reference, data.results);
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message || "Failed to find nearest vehicles";
+      setError(msg);
+      setReference(null);
+      setResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateMap = (ref: any, res: NearestResult[]) => {
-    if (!mapRef.current || !ref) return;
+  const updateMap = (ref: Reference | null, res: NearestResult[]) => {
+    if (!mapRef.current || !ref || !iconRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const L = require("leaflet");
     const map = mapRef.current;
 
-    // Clear old markers
-    markersRef.current.forEach((m) => map.removeLayer(m));
+    markersRef.current.forEach((m: any) => map.removeLayer(m));
     markersRef.current = [];
 
-    // Reference marker
-    const refMarker = L.marker([ref.latitude, ref.longitude], { icon: ICON_REF }).addTo(map);
+    const refMarker = L.marker([ref.latitude, ref.longitude], { icon: iconRef.current }).addTo(map);
     markersRef.current.push(refMarker);
 
-    // Result markers
     res.forEach((r) => {
-      const m = L.marker([r.latitude, r.longitude], { icon: ICON_NEAREST }).addTo(map);
+      const m = L.marker([r.latitude, r.longitude], { icon: iconNearest.current }).addTo(map);
       markersRef.current.push(m);
     });
 
-    // Fit bounds
-    const allPoints = [
+    const allPoints: [number, number][] = [
       [ref.latitude, ref.longitude],
-      ...res.map((r) => [r.latitude, r.longitude]),
+      ...res.map((r) => [r.latitude, r.longitude] as [number, number]),
     ];
     if (allPoints.length > 1) {
       map.fitBounds(allPoints, { padding: [40, 40] });
@@ -131,7 +148,15 @@ export default function NearestVehiclePage() {
         <p className="text-muted-foreground">Select a vehicle to find the nearest others by road distance</p>
       </div>
 
-      {/* Vehicle Selector */}
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="flex items-center gap-2 py-3">
+            <AlertCircle className="size-4 text-destructive" />
+            <p className="text-sm text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -170,10 +195,8 @@ export default function NearestVehiclePage() {
         </CardContent>
       </Card>
 
-      {/* Results */}
       {results.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Results Table */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Results ({results.length} vehicles)</CardTitle>
@@ -220,7 +243,6 @@ export default function NearestVehiclePage() {
             </CardContent>
           </Card>
 
-          {/* Map */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -239,15 +261,14 @@ export default function NearestVehiclePage() {
             </CardHeader>
             <CardContent>
               <div className="h-[500px] overflow-hidden rounded-lg border">
-                <NearestMapInner ref={mapRef} center={reference} />
+                {iconsReady && <NearestMapInner ref={mapRef} center={reference} />}
               </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Empty State */}
-      {!loading && results.length === 0 && selectedId && (
+      {!loading && results.length === 0 && selectedId && !error && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Crosshair className="mb-3 size-10 text-muted-foreground opacity-50" />
@@ -259,8 +280,7 @@ export default function NearestVehiclePage() {
   );
 }
 
-// Inner map component using dynamic import
-const NearestMapInner = React.forwardRef<any, { center: any }>(
+const NearestMapInner = React.forwardRef<any, { center: Reference | null }>(
   function NearestMapInner({ center }, ref) {
     const containerRef = React.useRef<HTMLDivElement>(null);
     const mapInstanceRef = React.useRef<any>(null);
