@@ -134,7 +134,7 @@ export function ReportShell({
     if (meta.extraFields?.includes("eventType") && eventType !== "all") {
       params.eventType = eventType;
     }
-    onGenerate(params);
+    onGenerate(params as { from: string; to: string; [key: string]: any });
   };
 
   const setParam = (key: string, value: any) => {
