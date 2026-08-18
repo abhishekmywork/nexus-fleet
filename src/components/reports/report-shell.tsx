@@ -147,7 +147,7 @@ export function ReportShell({
         <CardTitle className="text-lg font-semibold">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3 overflow-visible">
+        <div className="flex flex-wrap items-start gap-3 overflow-visible">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
               Report Type
