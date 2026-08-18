@@ -67,4 +67,10 @@ export class ReportsController {
   async deviceHealth(@CurrentUser() user: AuthenticatedUser, @Query() q: ReportQuery) {
     return this.reports.deviceHealthReport(user, q);
   }
+
+  @Get('travel-distance')
+  @Permissions('telemetry:read')
+  async travelDistance(@CurrentUser() user: AuthenticatedUser, @Query() q: ReportQuery) {
+    return this.reports.travelDistanceReport(user, q);
+  }
 }

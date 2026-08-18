@@ -772,6 +772,8 @@ export const api = {
       request<any[]>(buildQuery("/reports/driver-activity", params)),
     deviceHealth: (params: { from: string; to: string }) =>
       request<any[]>(buildQuery("/reports/device-health", params)),
+    travelDistance: (params: { from: string; to: string; deviceId?: string }) =>
+      request<any[]>(buildQuery("/reports/travel-distance", params)),
   },
 
   subscriptionPlans: {

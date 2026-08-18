@@ -496,6 +496,85 @@ export class ReportsService {
     });
   }
 
+  // 11. Travel Distance Report
+  async travelDistanceReport(user: AuthenticatedUser, q: ReportQuery) {
+    const devices = await this.getDevicesForUser(user);
+    const deviceIds = devices.map((d) => d.id);
+    if (deviceIds.length === 0) return [];
+
+    const qb = this.readings
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.device', 'd')
+      .leftJoinAndSelect('d.vehicle', 'v')
+      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
+      .andWhere('r.timestamp >= :from', { from: q.from })
+      .andWhere('r.timestamp <= :to', { to: q.to })
+      .orderBy('r.timestamp', 'ASC');
+
+    if (q.deviceId) qb.andWhere('r.deviceId = :deviceId', { deviceId: q.deviceId });
+
+    const readings = await qb.getMany();
+    const byDevice = new Map<string, typeof readings>();
+    for (const r of readings) {
+      const arr = byDevice.get(r.deviceId) || [];
+      arr.push(r);
+      byDevice.set(r.deviceId, arr);
+    }
+
+    const results: any[] = [];
+    for (const [deviceId, devs] of byDevice) {
+      const device = devices.find((d) => d.id === deviceId);
+      let totalDist = 0;
+      let movingTime = 0;
+      let tripCount = 0;
+      let lastTripEnd = 0;
+
+      for (let i = 1; i < devs.length; i++) {
+        const gap = new Date(devs[i].timestamp).getTime() - new Date(devs[i - 1].timestamp).getTime();
+        if (gap > 5 * 60 * 1000) {
+          tripCount++;
+        }
+
+        const dist = this.haversine(
+          Number(devs[i - 1].latitude), Number(devs[i - 1].longitude),
+          Number(devs[i].latitude), Number(devs[i].longitude),
+        );
+        totalDist += dist;
+
+        if (devs[i].movement === 'MOVING') {
+          movingTime += gap / 1000;
+        }
+        lastTripEnd = i;
+      }
+
+      if (devs.length >= 2) tripCount++;
+
+      const speeds = devs.filter((d) => d.speed != null).map((d) => Number(d.speed));
+      const avgSpeed = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
+      const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
+
+      results.push({
+        plateNumber: device?.vehicle?.plateNumber ?? deviceId.slice(0, 8),
+        make: device?.vehicle?.make ?? '',
+        model: device?.vehicle?.model ?? '',
+        deviceId,
+        totalDistanceKm: Math.round(totalDist * 100) / 100,
+        tripCount,
+        movingTimeSec: Math.round(movingTime),
+        avgSpeed: Math.round(avgSpeed * 100) / 100,
+        maxSpeed: Math.round(maxSpeed * 100) / 100,
+        firstSeen: devs[0]?.timestamp,
+        lastSeen: devs[devs.length - 1]?.timestamp,
+        startLat: devs[0] ? Number(devs[0].latitude) : null,
+        startLon: devs[0] ? Number(devs[0].longitude) : null,
+        endLat: devs[lastTripEnd] ? Number(devs[lastTripEnd].latitude) : null,
+        endLon: devs[lastTripEnd] ? Number(devs[lastTripEnd].longitude) : null,
+      });
+    }
+
+    return results.sort((a, b) => b.totalDistanceKm - a.totalDistanceKm);
+  }
+
   private haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;

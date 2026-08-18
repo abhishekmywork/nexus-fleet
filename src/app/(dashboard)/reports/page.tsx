@@ -25,6 +25,7 @@ import { GeofenceSummaryReport } from "@/components/reports/geofence-summary-rep
 import { EventLogReport } from "@/components/reports/event-log-report";
 import { DriverActivityReport } from "@/components/reports/driver-activity-report";
 import { DeviceHealthReport } from "@/components/reports/device-health-report";
+import { TravelDistanceReport } from "@/components/reports/travel-distance-report";
 
 const REPORTS = [
   { id: "vehicle-trips", label: "Vehicle Trips", icon: Car },
@@ -37,6 +38,7 @@ const REPORTS = [
   { id: "event-log", label: "Event Log", icon: Activity },
   { id: "driver-activity", label: "Driver Activity", icon: UserCheck },
   { id: "device-health", label: "Device Health", icon: HardDrive },
+  { id: "travel-distance", label: "Travel Distance", icon: MapPin },
 ] as const;
 
 type ReportId = (typeof REPORTS)[number]["id"];
@@ -52,6 +54,7 @@ const REPORT_COMPONENTS: Record<ReportId, React.ComponentType> = {
   "event-log": EventLogReport,
   "driver-activity": DriverActivityReport,
   "device-health": DeviceHealthReport,
+  "travel-distance": TravelDistanceReport,
 };
 
 const REPORT_OPTIONS: SearchableSelectOption[] = REPORTS.map((r) => ({
