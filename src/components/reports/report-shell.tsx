@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,30 @@ import { Loader2, Search } from "lucide-react";
 import { ExportToolbar } from "./export-toolbar";
 import { ReportMapDialog } from "./report-map-dialog";
 import { api } from "@/lib/api";
-import { SearchableSelect } from "@/components/common/searchable-select";
+import { SearchableSelect, SearchableSelectOption } from "@/components/common/searchable-select";
 import type { Vehicle } from "@/lib/auth-types";
+
+const STORAGE_KEY = "nexus-report-state";
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
+}
+
+function loadPersistedState(): Record<string, any> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistState(state: Record<string, any>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
 }
 
 export interface Column {
@@ -37,9 +56,19 @@ export interface Column {
   render?: (val: any, row: any) => React.ReactNode;
 }
 
+export interface ReportMeta {
+  label: string;
+  needsVehicle: boolean;
+  extraFields?: string[];
+}
+
 interface ReportShellProps {
   title: string;
   reportId: string;
+  reportType: string;
+  onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[];
+  reportMeta: Record<string, ReportMeta>;
   children?: React.ReactNode | ((props: { extraParams: Record<string, any>; setParam: (key: string, value: any) => void }) => React.ReactNode);
   onGenerate: (params: { from: string; to: string; [key: string]: any }) => void;
   loading: boolean;
@@ -52,6 +81,10 @@ interface ReportShellProps {
 export function ReportShell({
   title,
   reportId,
+  reportType,
+  onReportTypeChange,
+  reportOptions,
+  reportMeta,
   children,
   onGenerate,
   loading,
@@ -60,25 +93,48 @@ export function ReportShell({
   onViewMap,
   exportFileName,
 }: ReportShellProps) {
-  const [from, setFrom] = useState(todayStr());
-  const [to, setTo] = useState(todayStr());
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
+  const persisted = loadPersistedState();
+  const meta = reportMeta[reportType] ?? { label: title, needsVehicle: false };
+
+  const [from, setFrom] = useState(persisted.from ?? todayStr());
+  const [to, setTo] = useState(persisted.to ?? todayStr());
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(persisted.vehicleId ?? "all");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [extraParams, setExtraParams] = useState<Record<string, any>>({});
+  const [extraParams, setExtraParams] = useState<Record<string, any>>(persisted.extraParams ?? {});
+  const [speedLimit, setSpeedLimit] = useState(persisted.speedLimit ?? "120");
+  const [minDuration, setMinDuration] = useState(persisted.minDuration ?? "5");
+  const [eventType, setEventType] = useState(persisted.eventType ?? "all");
 
   useEffect(() => {
     api.vehicles.list().then(setVehicles).catch(() => {});
   }, []);
 
+  // Persist state on every change
+  useEffect(() => {
+    persistState({ from, to, vehicleId: selectedVehicleId, extraParams, speedLimit, minDuration, eventType, reportType });
+  }, [from, to, selectedVehicleId, extraParams, speedLimit, minDuration, eventType, reportType]);
+
   const handleGenerate = () => {
     const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
     const deviceId = selectedVehicle?.gpsDevice?.id;
-    onGenerate({
+    const params: Record<string, any> = {
       from: `${from}T00:00:00`,
       to: `${to}T23:59:59`,
-      ...(deviceId ? { deviceId } : {}),
-      ...extraParams,
-    });
+    };
+    if (deviceId && meta.needsVehicle) {
+      params.deviceId = deviceId;
+    }
+    // Inject built-in extra fields
+    if (meta.extraFields?.includes("speedLimit")) {
+      params.speedLimit = Number(speedLimit) || 120;
+    }
+    if (meta.extraFields?.includes("minDuration")) {
+      params.minDuration = Number(minDuration) || 0;
+    }
+    if (meta.extraFields?.includes("eventType") && eventType !== "all") {
+      params.eventType = eventType;
+    }
+    onGenerate(params);
   };
 
   const setParam = (key: string, value: any) => {
@@ -92,6 +148,18 @@ export function ReportShell({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-end gap-3 overflow-visible">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Report Type
+            </label>
+            <SearchableSelect
+              options={reportOptions}
+              value={reportType}
+              onChange={(v) => { if (v) onReportTypeChange(v as string); }}
+              placeholder="Select report..."
+              className="w-52"
+            />
+          </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
               From
@@ -114,25 +182,76 @@ export function ReportShell({
               className="w-40"
             />
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Vehicle
-            </label>
-            <SearchableSelect
-              options={[
-                { value: "all", label: "All Vehicles" },
-                ...vehicles.map((v) => ({
-                  value: v.id,
-                  label: v.plateNumber,
-                  description: `${v.make} ${v.model}`,
-                })),
-              ]}
-              value={selectedVehicleId}
-              onChange={(val) => setSelectedVehicleId(val as string)}
-              placeholder="All Vehicles"
-              className="w-48"
-            />
-          </div>
+          {meta.needsVehicle && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Vehicle
+              </label>
+              <SearchableSelect
+                options={[
+                  { value: "all", label: "All Vehicles" },
+                  ...vehicles.map((v) => ({
+                    value: v.id,
+                    label: v.plateNumber,
+                    description: `${v.make} ${v.model}`,
+                  })),
+                ]}
+                value={selectedVehicleId}
+                onChange={(val) => setSelectedVehicleId(val as string)}
+                placeholder="All Vehicles"
+                className="w-48"
+              />
+            </div>
+          )}
+          {meta.extraFields?.includes("speedLimit") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Speed Limit (km/h)
+              </label>
+              <Input
+                type="number"
+                value={speedLimit}
+                onChange={(e) => setSpeedLimit(e.target.value)}
+                className="w-28"
+                min={1}
+              />
+            </div>
+          )}
+          {meta.extraFields?.includes("minDuration") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Min Duration (min)
+              </label>
+              <Input
+                type="number"
+                value={minDuration}
+                onChange={(e) => setMinDuration(e.target.value)}
+                className="w-28"
+                min={0}
+              />
+            </div>
+          )}
+          {meta.extraFields?.includes("eventType") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Event Type
+              </label>
+              <Select value={eventType} onValueChange={setEventType}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Events</SelectItem>
+                  <SelectItem value="SPEED">Speed</SelectItem>
+                  <SelectItem value="IDLE">Idle</SelectItem>
+                  <SelectItem value="GEOFENCE">Geofence</SelectItem>
+                  <SelectItem value="IGNITION">Ignition</SelectItem>
+                  <SelectItem value="MOVEMENT">Movement</SelectItem>
+                  <SelectItem value="SOS">SOS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {typeof children === "function"
             ? children({ extraParams, setParam })
             : children}

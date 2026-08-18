@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
-import { useReportRestore } from "@/hooks/use-report-restore";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "./report-shell";
 
 function formatDuration(sec?: number): string {
   if (sec == null) return "—";
@@ -26,14 +27,12 @@ const columns: Column[] = [
 
 const REPORT_ID = "daily-summary";
 
-export function DailySummaryReport() {
+export function DailySummaryReport({ reportType, onReportTypeChange, reportOptions, reportMeta }: {
+  reportType: string; onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[]; reportMeta: Record<string, ReportMeta>;
+}) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const restored = useReportRestore(REPORT_ID);
-
-  useEffect(() => {
-    if (restored) setData(restored);
-  }, [restored]);
 
   const handleGenerate = async (params: { from: string; to: string; deviceId?: string }) => {
     setLoading(true);
@@ -48,6 +47,6 @@ export function DailySummaryReport() {
   };
 
   return (
-    <ReportShell title="Daily Summary" reportId={REPORT_ID} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="daily-summary" />
+    <ReportShell title="Daily Summary" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="daily-summary" />
   );
 }

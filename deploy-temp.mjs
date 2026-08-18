@@ -27,7 +27,7 @@ conn.on("ready", async () => {
   await run(`cd ${PROJECT} && docker compose build --no-cache frontend`);
 
   console.log("\n=== Restart all services ===");
-  await run(`cd ${PROJECT} && docker compose up -d --force-recreate backend frontend`);
+  await run(`cd ${PROJECT} && docker compose up -d --force-recreate backend frontend nginx`);
 
   console.log("\n=== Wait and check ===");
   await new Promise(r => setTimeout(r, 15000));

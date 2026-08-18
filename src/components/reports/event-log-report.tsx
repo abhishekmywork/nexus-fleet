@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
-import { useReportRestore } from "@/hooks/use-report-restore";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "./report-shell";
 
 function fmtTimestamp(val?: string): string {
   return val ? new Date(val).toLocaleString() : "—";
@@ -25,15 +25,13 @@ const columns: Column[] = [
 
 const REPORT_ID = "event-log";
 
-export function EventLogReport() {
+export function EventLogReport({ reportType, onReportTypeChange, reportOptions, reportMeta }: {
+  reportType: string; onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[]; reportMeta: Record<string, ReportMeta>;
+}) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const restored = useReportRestore(REPORT_ID);
   const router = useRouter();
-
-  useEffect(() => {
-    if (restored) setData(restored);
-  }, [restored]);
 
   const handleGenerate = async (params: { from: string; to: string; eventType?: string; deviceId?: string }) => {
     setLoading(true);
@@ -48,23 +46,6 @@ export function EventLogReport() {
   };
 
   return (
-    <ReportShell title="Event Log" reportId={REPORT_ID} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="event-log">
-      {({ setParam }: any) => (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Event Type</label>
-          <Select onValueChange={(val) => setParam("eventType", val || undefined)}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="All events" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="SPEED">Speed</SelectItem>
-              <SelectItem value="IDLE">Idle</SelectItem>
-              <SelectItem value="GEOFENCE">Geofence</SelectItem>
-              <SelectItem value="IGNITION">Ignition</SelectItem>
-              <SelectItem value="MOVEMENT">Movement</SelectItem>
-              <SelectItem value="SOS">SOS</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-    </ReportShell>
+    <ReportShell title="Event Log" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="event-log" />
   );
 }

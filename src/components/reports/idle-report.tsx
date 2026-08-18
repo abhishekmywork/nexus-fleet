@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
-import { useReportRestore } from "@/hooks/use-report-restore";
-import { Input } from "@/components/ui/input";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "./report-shell";
 
 function formatDuration(sec?: number): string {
   if (sec == null) return "—";
@@ -30,15 +30,13 @@ const columns: Column[] = [
 
 const REPORT_ID = "idle-stoppages";
 
-export function IdleReport() {
+export function IdleReport({ reportType, onReportTypeChange, reportOptions, reportMeta }: {
+  reportType: string; onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[]; reportMeta: Record<string, ReportMeta>;
+}) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const restored = useReportRestore(REPORT_ID);
   const router = useRouter();
-
-  useEffect(() => {
-    if (restored) setData(restored);
-  }, [restored]);
 
   const handleGenerate = async (params: { from: string; to: string; minDuration?: number }) => {
     setLoading(true);
@@ -53,13 +51,6 @@ export function IdleReport() {
   };
 
   return (
-    <ReportShell title="Idle & Stoppages" reportId={REPORT_ID} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="idle-stoppages">
-      {({ setParam }: any) => (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Min Duration (min)</label>
-          <Input type="number" placeholder="e.g. 5" className="w-28" onChange={(e) => setParam("minDuration", e.target.value ? Number(e.target.value) : undefined)} />
-        </div>
-      )}
-    </ReportShell>
+    <ReportShell title="Idle & Stoppages" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="idle-stoppages" />
   );
 }

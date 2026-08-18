@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
-import { useReportRestore } from "@/hooks/use-report-restore";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "./report-shell";
 
 const columns: Column[] = [
   { key: "geofenceName", label: "Geofence" },
@@ -14,14 +15,12 @@ const columns: Column[] = [
 
 const REPORT_ID = "geofence-summary";
 
-export function GeofenceSummaryReport() {
+export function GeofenceSummaryReport({ reportType, onReportTypeChange, reportOptions, reportMeta }: {
+  reportType: string; onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[]; reportMeta: Record<string, ReportMeta>;
+}) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const restored = useReportRestore(REPORT_ID);
-
-  useEffect(() => {
-    if (restored) setData(restored);
-  }, [restored]);
 
   const handleGenerate = async (params: { from: string; to: string }) => {
     setLoading(true);
@@ -36,6 +35,6 @@ export function GeofenceSummaryReport() {
   };
 
   return (
-    <ReportShell title="Geofence Summary" reportId={REPORT_ID} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="geofence-summary" />
+    <ReportShell title="Geofence Summary" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="geofence-summary" />
   );
 }

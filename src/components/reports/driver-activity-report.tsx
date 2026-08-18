@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
-import { useReportRestore } from "@/hooks/use-report-restore";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "./report-shell";
 
 const columns: Column[] = [
   { key: "driverName", label: "Driver" },
@@ -16,14 +17,12 @@ const columns: Column[] = [
 
 const REPORT_ID = "driver-activity";
 
-export function DriverActivityReport() {
+export function DriverActivityReport({ reportType, onReportTypeChange, reportOptions, reportMeta }: {
+  reportType: string; onReportTypeChange: (id: string) => void;
+  reportOptions: SearchableSelectOption[]; reportMeta: Record<string, ReportMeta>;
+}) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const restored = useReportRestore(REPORT_ID);
-
-  useEffect(() => {
-    if (restored) setData(restored);
-  }, [restored]);
 
   const handleGenerate = async (params: { from: string; to: string; driverId?: string }) => {
     setLoading(true);
@@ -38,6 +37,6 @@ export function DriverActivityReport() {
   };
 
   return (
-    <ReportShell title="Driver Activity" reportId={REPORT_ID} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="driver-activity" />
+    <ReportShell title="Driver Activity" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="driver-activity" />
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
-import { SearchableSelect, SearchableSelectOption } from "@/components/common/searchable-select";
+import type { SearchableSelectOption } from "@/components/common/searchable-select";
+import type { ReportMeta } from "@/components/reports/report-shell";
 import {
   Car,
   CalendarDays,
@@ -15,19 +16,10 @@ import {
   UserCheck,
   HardDrive,
 } from "lucide-react";
-import { VehicleTripReport } from "@/components/reports/vehicle-trip-report";
-import { DailySummaryReport } from "@/components/reports/daily-summary-report";
-import { SpeedViolationReport } from "@/components/reports/speed-violation-report";
-import { IdleReport } from "@/components/reports/idle-report";
-import { IgnitionReport } from "@/components/reports/ignition-report";
-import { GeofenceEntryExitReport } from "@/components/reports/geofence-entry-exit-report";
-import { GeofenceSummaryReport } from "@/components/reports/geofence-summary-report";
-import { EventLogReport } from "@/components/reports/event-log-report";
-import { DriverActivityReport } from "@/components/reports/driver-activity-report";
-import { DeviceHealthReport } from "@/components/reports/device-health-report";
-import { TravelDistanceReport } from "@/components/reports/travel-distance-report";
 
-const REPORTS = [
+const STORAGE_KEY = "nexus-report-state";
+
+export const REPORTS = [
   { id: "vehicle-trips", label: "Vehicle Trips", icon: Car },
   { id: "daily-summary", label: "Daily Summary", icon: CalendarDays },
   { id: "speed-violations", label: "Speed Violations", icon: Gauge },
@@ -43,18 +35,18 @@ const REPORTS = [
 
 type ReportId = (typeof REPORTS)[number]["id"];
 
-const REPORT_COMPONENTS: Record<ReportId, React.ComponentType> = {
-  "vehicle-trips": VehicleTripReport,
-  "daily-summary": DailySummaryReport,
-  "speed-violations": SpeedViolationReport,
-  "idle-stoppages": IdleReport,
-  ignition: IgnitionReport,
-  "geofence-entry-exit": GeofenceEntryExitReport,
-  "geofence-summary": GeofenceSummaryReport,
-  "event-log": EventLogReport,
-  "driver-activity": DriverActivityReport,
-  "device-health": DeviceHealthReport,
-  "travel-distance": TravelDistanceReport,
+export const REPORT_META: Record<string, ReportMeta> = {
+  "vehicle-trips": { label: "Vehicle Trips", needsVehicle: true },
+  "daily-summary": { label: "Daily Summary", needsVehicle: true },
+  "speed-violations": { label: "Speed Violations", needsVehicle: false, extraFields: ["speedLimit"] },
+  "idle-stoppages": { label: "Idle & Stoppages", needsVehicle: false, extraFields: ["minDuration"] },
+  ignition: { label: "Ignition Events", needsVehicle: true },
+  "geofence-entry-exit": { label: "Geofence Entry/Exit", needsVehicle: false },
+  "geofence-summary": { label: "Geofence Summary", needsVehicle: false },
+  "event-log": { label: "Event Log", needsVehicle: true, extraFields: ["eventType"] },
+  "driver-activity": { label: "Driver Activity", needsVehicle: false },
+  "device-health": { label: "Device Health", needsVehicle: false },
+  "travel-distance": { label: "Travel Distance", needsVehicle: true },
 };
 
 const REPORT_OPTIONS: SearchableSelectOption[] = REPORTS.map((r) => ({
@@ -62,9 +54,30 @@ const REPORT_OPTIONS: SearchableSelectOption[] = REPORTS.map((r) => ({
   label: r.label,
 }));
 
+function loadReportType(): ReportId {
+  if (typeof window === "undefined") return "vehicle-trips";
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.reportType && REPORTS.some((r) => r.id === parsed.reportType)) {
+        return parsed.reportType;
+      }
+    }
+  } catch {}
+  return "vehicle-trips";
+}
+
 export default function ReportsPage() {
-  const [selected, setSelected] = useState<ReportId>("vehicle-trips");
-  const ReportComponent = REPORT_COMPONENTS[selected];
+  const [selected, setSelected] = useState<ReportId>(loadReportType);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const state = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, reportType: selected }));
+    } catch {}
+  }, [selected]);
 
   return (
     <div className="space-y-6">
@@ -72,19 +85,87 @@ export default function ReportsPage() {
         title="Reports"
         description="Generate and export fleet management reports."
       />
-
-      <div className="space-y-4">
-        <SearchableSelect
-          options={REPORT_OPTIONS}
-          value={selected}
-          onChange={(v) => {
-            if (v) setSelected(v as ReportId);
-          }}
-          placeholder="Select a report..."
-          className="w-full max-w-sm"
-        />
-        <ReportComponent />
-      </div>
+      <ReportRouter selected={selected} onReportTypeChange={(id) => setSelected(id as ReportId)} />
     </div>
+  );
+}
+
+function ReportRouter({ selected, onReportTypeChange }: { selected: ReportId; onReportTypeChange: (id: string) => void }) {
+  const [ReportComponent, setReportComponent] = useState<React.ComponentType<any> | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      switch (selected) {
+        case "vehicle-trips": {
+          const mod = await import("@/components/reports/vehicle-trip-report");
+          setReportComponent(() => mod.VehicleTripReport);
+          break;
+        }
+        case "daily-summary": {
+          const mod = await import("@/components/reports/daily-summary-report");
+          setReportComponent(() => mod.DailySummaryReport);
+          break;
+        }
+        case "speed-violations": {
+          const mod = await import("@/components/reports/speed-violation-report");
+          setReportComponent(() => mod.SpeedViolationReport);
+          break;
+        }
+        case "idle-stoppages": {
+          const mod = await import("@/components/reports/idle-report");
+          setReportComponent(() => mod.IdleReport);
+          break;
+        }
+        case "ignition": {
+          const mod = await import("@/components/reports/ignition-report");
+          setReportComponent(() => mod.IgnitionReport);
+          break;
+        }
+        case "geofence-entry-exit": {
+          const mod = await import("@/components/reports/geofence-entry-exit-report");
+          setReportComponent(() => mod.GeofenceEntryExitReport);
+          break;
+        }
+        case "geofence-summary": {
+          const mod = await import("@/components/reports/geofence-summary-report");
+          setReportComponent(() => mod.GeofenceSummaryReport);
+          break;
+        }
+        case "event-log": {
+          const mod = await import("@/components/reports/event-log-report");
+          setReportComponent(() => mod.EventLogReport);
+          break;
+        }
+        case "driver-activity": {
+          const mod = await import("@/components/reports/driver-activity-report");
+          setReportComponent(() => mod.DriverActivityReport);
+          break;
+        }
+        case "device-health": {
+          const mod = await import("@/components/reports/device-health-report");
+          setReportComponent(() => mod.DeviceHealthReport);
+          break;
+        }
+        case "travel-distance": {
+          const mod = await import("@/components/reports/travel-distance-report");
+          setReportComponent(() => mod.TravelDistanceReport);
+          break;
+        }
+        default:
+          setReportComponent(null);
+      }
+    };
+    load();
+  }, [selected]);
+
+  if (!ReportComponent) return null;
+
+  return (
+    <ReportComponent
+      reportType={selected}
+      onReportTypeChange={onReportTypeChange}
+      reportOptions={REPORT_OPTIONS}
+      reportMeta={REPORT_META}
+    />
   );
 }
