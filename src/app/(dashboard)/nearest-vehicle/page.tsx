@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const NearestVehicleView = dynamic(
-  () => import("./nearest-vehicle-view").then((m) => m.default),
-  { ssr: false }
-);
+import NearestVehicleView from "./nearest-vehicle-view";
 
 export const metadata: Metadata = {
   title: "Nearest Vehicle",

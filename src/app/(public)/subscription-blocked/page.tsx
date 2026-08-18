@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const SubscriptionBlockedView = dynamic(
-  () => import("./subscription-blocked-view").then((m) => m.default),
-  { ssr: false }
-);
+import SubscriptionBlockedView from "./subscription-blocked-view";
 
 export const metadata: Metadata = {
   title: "Subscription Required",

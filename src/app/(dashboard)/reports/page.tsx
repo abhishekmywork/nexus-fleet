@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const ReportsView = dynamic(
-  () => import("./reports-view").then((m) => m.default),
-  { ssr: false }
-);
+import ReportsView from "./reports-view";
 
 export const metadata: Metadata = {
   title: "Reports",

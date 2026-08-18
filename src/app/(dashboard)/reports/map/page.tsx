@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const ReportMapView = dynamic(
-  () => import("./report-map-view").then((m) => m.default),
-  { ssr: false }
-);
+import ReportMapView from "./report-map-view";
 
 export const metadata: Metadata = {
   title: "Report Map",

@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const PublicMapView = dynamic(
-  () => import("./public-map-view").then((m) => m.default),
-  { ssr: false }
-);
+import PublicMapClient from "./public-map-client";
 
 export const metadata: Metadata = {
   title: "Live Fleet Map — Real-Time GPS Tracking",
@@ -18,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function PublicMapPage() {
-  return <PublicMapView />;
+  return <PublicMapClient />;
 }

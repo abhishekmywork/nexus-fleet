@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const VerifyAccountView = dynamic(
-  () => import("./verify-account-view").then((m) => m.default),
-  { ssr: false }
-);
+import VerifyAccountView from "./verify-account-view";
 
 export const metadata: Metadata = {
   title: "Verify Account",

@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const LiveMapView = dynamic(
-  () => import("./live-map-view").then((m) => m.default),
-  { ssr: false }
-);
+import LiveMapClient from "./live-map-client";
 
 export const metadata: Metadata = {
   title: "Live Map — Real-Time Fleet Tracking",
@@ -18,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function LiveMapPage() {
-  return <LiveMapView />;
+  return <LiveMapClient />;
 }

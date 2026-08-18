@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const PlansView = dynamic(
-  () => import("./plans-view").then((m) => m.default),
-  { ssr: false }
-);
+import PlansView from "./plans-view";
 
 export const metadata: Metadata = {
   title: "Subscription Plans",

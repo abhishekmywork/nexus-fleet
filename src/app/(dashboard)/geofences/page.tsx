@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const GeofencesView = dynamic(
-  () => import("./geofences-view").then((m) => m.default),
-  { ssr: false }
-);
+import GeofencesView from "./geofences-view";
 
 export const metadata: Metadata = {
   title: "Geofences",
