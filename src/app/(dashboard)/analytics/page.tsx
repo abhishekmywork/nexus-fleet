@@ -8,7 +8,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export const metadata = { title: "Analytics" };
+export const metadata = {
+  title: "Analytics",
+  description:
+    "Fleet analytics and insights. View performance metrics, usage trends, and operational data.",
+  openGraph: { title: "Analytics — MST-VTS", description: "Fleet analytics and performance insights." },
+};
 
 export default function AnalyticsPage() {
   return (

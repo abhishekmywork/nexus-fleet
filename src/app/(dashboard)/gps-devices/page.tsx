@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { GPSDevicesTable } from "@/components/gps-devices/gps-devices-table";
 
-export const metadata: Metadata = { title: "GPS Devices" };
+export const metadata: Metadata = {
+  title: "GPS Devices",
+  description:
+    "Manage GPS tracking devices. Register, configure, and monitor device status and connectivity.",
+  openGraph: { title: "GPS Devices — MST-VTS", description: "Manage GPS tracking devices and monitor connectivity." },
+};
 
 export default function GPSDevicesPage() {
   return (

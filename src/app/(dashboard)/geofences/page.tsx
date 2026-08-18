@@ -1,11 +1,18 @@
-"use client";
+import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 
-import { GeofencesTable } from "@/components/geofences/geofences-table";
+const GeofencesView = dynamic(
+  () => import("./geofences-view").then((m) => m.default),
+  { ssr: false }
+);
+
+export const metadata: Metadata = {
+  title: "Geofences",
+  description:
+    "Define and manage geofences. Set geographic boundaries for fleet operations and receive alerts on entry/exit.",
+  robots: { index: false, follow: false },
+};
 
 export default function GeofencesPage() {
-  return (
-    <div className="flex flex-col gap-6">
-      <GeofencesTable />
-    </div>
-  );
+  return <GeofencesView />;
 }

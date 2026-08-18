@@ -9,7 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export const metadata = { title: "Products" };
+export const metadata = {
+  title: "Products",
+  description:
+    "Manage GPS devices, sensors, and hardware products for your fleet.",
+  openGraph: { title: "Products — MST-VTS", description: "Manage GPS devices and fleet hardware products." },
+};
 
 const PLACEHOLDER_CARDS = [
   { title: "Total Products", value: "1,284" },
