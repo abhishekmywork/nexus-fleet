@@ -36,6 +36,32 @@ export class GpsCleanerService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     this.logger.log('GPS Cleaner service started — async processing enabled');
+    this.backfillExistingData();
+  }
+
+  private async backfillExistingData() {
+    try {
+      const count = await this.readings.count({ where: { processed: false } });
+      if (count === 0) {
+        this.logger.log('GPS backfill: no unprocessed readings found');
+        return;
+      }
+      this.logger.log(`GPS backfill: processing ${count} unprocessed readings`);
+
+      let processed = 0;
+      while (true) {
+        await this.processUnprocessed();
+        const remaining = await this.readings.count({ where: { processed: false } });
+        if (remaining === 0) break;
+        processed += 200;
+        this.logger.log(`GPS backfill: ${processed} done, ${remaining} remaining`);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      this.logger.log('GPS backfill: complete');
+    } catch (err) {
+      this.logger.error('GPS backfill failed', err);
+    }
   }
 
   async processUnprocessed(deviceId?: string): Promise<void> {
