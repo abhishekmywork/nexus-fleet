@@ -1,42 +1,23 @@
 "use client";
 
 import * as React from "react";
-import {
-  MapContainer,
-  Marker,
-  Popup,
-  Circle,
-  Polygon,
-  useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import { MapPin, Map, Satellite, Mountain, Layers } from "lucide-react";
+import { Map, useMap, AdvancedMarker, InfoWindow } from "@vis.gl/react-google-maps";
+import { MapPin, Map as MapIcon, Satellite, Mountain, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LivePosition } from "@/hooks/use-live-map";
 import type { Geofence } from "@/lib/auth-types";
 
 type MapMode = "standard" | "satellite" | "terrain" | "hybrid";
 
-const MAP_LAYERS: Record<MapMode, { url: string; attribution: string }[]> = {
-  standard: [
-    { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "&copy; OpenStreetMap" },
-  ],
-  satellite: [
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "&copy; Esri" },
-  ],
-  terrain: [
-    { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attribution: "&copy; OpenTopoMap" },
-    { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "" },
-  ],
-  hybrid: [
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "&copy; Esri" },
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", attribution: "" },
-  ],
+const MAP_MODE_TYPES: Record<MapMode, google.maps.MapTypeId> = {
+  standard: google.maps.MapTypeId.ROADMAP,
+  satellite: google.maps.MapTypeId.SATELLITE,
+  terrain: google.maps.MapTypeId.TERRAIN,
+  hybrid: google.maps.MapTypeId.HYBRID,
 };
 
 const MAP_MODE_ICONS: Record<MapMode, React.ReactNode> = {
-  standard: <Map className="size-3.5" />,
+  standard: <MapIcon className="size-3.5" />,
   satellite: <Satellite className="size-3.5" />,
   terrain: <Mountain className="size-3.5" />,
   hybrid: <Layers className="size-3.5" />,
@@ -49,19 +30,14 @@ const MAP_MODE_LABELS: Record<MapMode, string> = {
   hybrid: "Hybrid",
 };
 
-const DEFAULT_CENTER: [number, number] = [22.5, 88.3];
+const DEFAULT_CENTER: google.maps.LatLngLiteral = { lat: 22.5, lng: 88.3 };
 
-function MapLayerManager({ mapMode }: { mapMode: MapMode }) {
+function MapModeManager({ mapMode }: { mapMode: MapMode }) {
   const map = useMap();
-  const layerRefs = React.useRef<L.TileLayer[]>([]);
 
   React.useEffect(() => {
-    for (const layer of layerRefs.current) map.removeLayer(layer);
-    layerRefs.current = [];
-    for (const cfg of MAP_LAYERS[mapMode]) {
-      const layer = L.tileLayer(cfg.url, { attribution: cfg.attribution }).addTo(map);
-      layerRefs.current.push(layer);
-    }
+    if (!map) return;
+    map.setMapTypeId(MAP_MODE_TYPES[mapMode]);
   }, [mapMode, map]);
 
   return null;
@@ -78,66 +54,156 @@ function FitBounds({
   const lastFittedRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
+    if (!map) return;
+
     const key = `${geofences.filter((g) => g.enabled).length}-${positions.length}`;
     if (lastFittedRef.current === key) return;
 
-    const gfPoints: [number, number][] = [];
+    const gfPoints: google.maps.LatLngLiteral[] = [];
     for (const gf of geofences) {
       if (!gf.enabled) continue;
       if (gf.type === "circle" && gf.coordinates?.center) {
-        gfPoints.push([gf.coordinates.center.lat, gf.coordinates.center.lon]);
+        gfPoints.push({ lat: gf.coordinates.center.lat, lng: gf.coordinates.center.lon });
       }
       if (gf.type === "polygon" && gf.coordinates?.points) {
-        for (const p of gf.coordinates.points) gfPoints.push([p.lat, p.lon]);
+        for (const p of gf.coordinates.points) gfPoints.push({ lat: p.lat, lng: p.lon });
       }
     }
 
     const points = gfPoints.length > 0
       ? gfPoints
-      : positions.map((p) => [p.latitude, p.longitude] as [number, number]);
+      : positions.map((p) => ({ lat: p.latitude, lng: p.longitude }));
 
     if (points.length === 0) return;
 
-    map.fitBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 15 });
+    const bounds = new google.maps.LatLngBounds();
+    for (const pt of points) bounds.extend(pt);
+
+    if (points.length === 1) {
+      map.setCenter(points[0]);
+      map.setZoom(15);
+    } else {
+      map.fitBounds(bounds, 50);
+    }
+
     lastFittedRef.current = key;
   }, [positions, geofences, map]);
 
   return null;
 }
 
-function createVehicleIcon(plateNumber: string | null, movement: string | null): L.DivIcon {
+function GeofenceManager({
+  geofences,
+}: {
+  geofences: Geofence[];
+}) {
+  const map = useMap();
+  const circlesRef = React.useRef<google.maps.Circle[]>([]);
+  const polygonsRef = React.useRef<google.maps.Polygon[]>([]);
+
+  React.useEffect(() => {
+    if (!map) return;
+
+    for (const c of circlesRef.current) c.setMap(null);
+    circlesRef.current = [];
+    for (const p of polygonsRef.current) p.setMap(null);
+    polygonsRef.current = [];
+
+    for (const gf of geofences) {
+      if (!gf.enabled) continue;
+
+      if (gf.type === "circle") {
+        const center = gf.coordinates?.center;
+        const radius = gf.coordinates?.radiusMeters;
+        if (!center || !radius) continue;
+        const circle = new google.maps.Circle({
+          map,
+          center: { lat: center.lat, lng: center.lon },
+          radius,
+          strokeColor: "#3b82f6",
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          fillColor: "#3b82f6",
+          fillOpacity: 0.1,
+        });
+        circlesRef.current.push(circle);
+      }
+
+      if (gf.type === "polygon") {
+        const points = gf.coordinates?.points;
+        if (!points || !Array.isArray(points) || points.length < 3) continue;
+        const polygon = new google.maps.Polygon({
+          map,
+          paths: points.map((p: { lat: number; lon: number }) => ({ lat: p.lat, lng: p.lon })),
+          strokeColor: "#8b5cf6",
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          fillColor: "#8b5cf6",
+          fillOpacity: 0.1,
+        });
+        polygonsRef.current.push(polygon);
+      }
+    }
+
+    return () => {
+      for (const c of circlesRef.current) c.setMap(null);
+      for (const p of polygonsRef.current) p.setMap(null);
+    };
+  }, [geofences, map]);
+
+  return null;
+}
+
+function createVehicleHtml(plateNumber: string | null, movement: string | null): string {
   const color =
     movement === "MOVING" ? "#22c55e" :
     movement === "STOPPED" ? "#f97316" : "#64748b";
 
-  return L.divIcon({
-    className: "vehicle-marker",
-    html: `
-      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-        <div style="
-          width:12px;height:12px;border-radius:50%;
-          background:${color};border:2px solid #fff;
-          box-shadow:0 0 0 2px ${color}, 0 0 8px ${color}40;
-        "></div>
-        <div style="
-          width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;
-        "></div>
-        ${plateNumber ? `<span style="
-          position:absolute;top:-20px;left:50%;transform:translateX(-50%);
-          background:${color};color:#fff;font-size:8px;font-weight:700;
-          padding:1px 5px;border-radius:3px;white-space:nowrap;
-          box-shadow:0 1px 4px rgba(0,0,0,.3);
-        ">${plateNumber}</span>` : ""}
-      </div>
-    `,
-    iconSize: [14, 16],
-    iconAnchor: [7, 16],
-  });
+  return `
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+      <div style="
+        width:12px;height:12px;border-radius:50%;
+        background:${color};border:2px solid #fff;
+        box-shadow:0 0 0 2px ${color}, 0 0 8px ${color}40;
+      "></div>
+      <div style="
+        width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;
+      "></div>
+      ${plateNumber ? `<span style="
+        position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+        background:${color};color:#fff;font-size:8px;font-weight:700;
+        padding:1px 5px;border-radius:3px;white-space:nowrap;
+        box-shadow:0 1px 4px rgba(0,0,0,.3);
+      ">${plateNumber}</span>` : ""}
+    </div>
+  `;
 }
 
 function formatSpeed(speed: number | null): string {
   if (speed == null) return "N/A";
   return `${parseFloat(speed.toFixed(2))} km/h`;
+}
+
+function VehicleMarker({ pos }: { pos: LivePosition }) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <AdvancedMarker
+      position={{ lat: pos.latitude, lng: pos.longitude }}
+      onClick={() => setOpen(true)}
+    >
+      <div dangerouslySetInnerHTML={{ __html: createVehicleHtml(pos.plateNumber, pos.movement) }} />
+      {open && (
+        <InfoWindow onCloseClick={() => setOpen(false)} position={{ lat: pos.latitude, lng: pos.longitude }}>
+          <div className="min-w-[160px] space-y-0.5 text-sm">
+            <p className="font-semibold">{pos.plateNumber ?? "Unknown"}</p>
+            <p>Speed: {formatSpeed(pos.speed)}</p>
+            <p>Ignition: {pos.ignition ?? "N/A"}</p>
+          </div>
+        </InfoWindow>
+      )}
+    </AdvancedMarker>
+  );
 }
 
 export function PublicMapInner({
@@ -161,59 +227,22 @@ export function PublicMapInner({
 
   return (
     <div className="relative h-full w-full">
-      <MapContainer
-        center={DEFAULT_CENTER}
-        zoom={12}
-        className="h-full w-full"
-        zoomControl={false}
+      <Map
+        defaultCenter={DEFAULT_CENTER}
+        defaultZoom={12}
+        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID}
+        gestureHandling="greedy"
+        disableDefaultUI={true}
+        style={{ width: "100%", height: "100%" }}
       >
-        <MapLayerManager mapMode={mapMode} />
+        <MapModeManager mapMode={mapMode} />
         <FitBounds positions={positions} geofences={geofences} />
+        <GeofenceManager geofences={geofences} />
 
         {positions.map((pos) => (
-          <Marker
-            key={pos.deviceId}
-            position={[pos.latitude, pos.longitude]}
-            icon={createVehicleIcon(pos.plateNumber, pos.movement)}
-          >
-            <Popup>
-              <div className="min-w-[160px] space-y-0.5 text-sm">
-                <p className="font-semibold">{pos.plateNumber ?? "Unknown"}</p>
-                <p>Speed: {formatSpeed(pos.speed)}</p>
-                <p>Ignition: {pos.ignition ?? "N/A"}</p>
-              </div>
-            </Popup>
-          </Marker>
+          <VehicleMarker key={pos.deviceId} pos={pos} />
         ))}
-
-        {geofences.filter((gf) => gf.enabled).map((gf) => {
-          if (gf.type === "circle") {
-            const center = gf.coordinates?.center;
-            const radius = gf.coordinates?.radiusMeters;
-            if (!center || !radius) return null;
-            return (
-              <Circle
-                key={gf.id}
-                center={[center.lat, center.lon]}
-                radius={radius}
-                pathOptions={{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.1, weight: 2 }}
-              />
-            );
-          }
-          if (gf.type === "polygon") {
-            const points = gf.coordinates?.points;
-            if (!points || !Array.isArray(points) || points.length < 3) return null;
-            return (
-              <Polygon
-                key={gf.id}
-                positions={points.map((p: { lat: number; lon: number }) => [p.lat, p.lon] as [number, number])}
-                pathOptions={{ color: "#8b5cf6", fillColor: "#8b5cf6", fillOpacity: 0.1, weight: 2 }}
-              />
-            );
-          }
-          return null;
-        })}
-      </MapContainer>
+      </Map>
 
       {/* Tenant label */}
       <div className="absolute top-4 left-4 z-[1000] rounded-lg border bg-background/90 px-3 py-2 shadow-sm backdrop-blur">
@@ -238,7 +267,7 @@ export function PublicMapInner({
           </button>
           {modeMenuOpen && (
             <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-32 rounded-lg border bg-background p-1 shadow-lg">
-              {(Object.keys(MAP_LAYERS) as MapMode[]).map((mode) => (
+              {(Object.keys(MAP_MODE_TYPES) as MapMode[]).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => { setMapMode(mode); setModeMenuOpen(false); }}

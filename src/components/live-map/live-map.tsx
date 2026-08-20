@@ -3,46 +3,36 @@
 import * as React from "react";
 import { useState, useRef, useCallback } from "react";
 import {
-  MapContainer,
-  Marker,
-  Popup,
-  Circle,
-  Polygon,
-  Polyline,
+  Map,
   useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import "leaflet-polylinedecorator";
+  AdvancedMarker,
+  InfoWindow,
+} from "@vis.gl/react-google-maps";
 import proj4 from "proj4";
 import { useLiveMap, LivePosition } from "@/hooks/use-live-map";
 import { VehicleSidebar } from "./vehicle-sidebar";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Geofence, TrailPoint } from "@/lib/auth-types";
-import { ChevronRight, Map, Satellite, Mountain, Layers } from "lucide-react";
+import {
+  ChevronRight,
+  MapIcon,
+  Satellite,
+  Mountain,
+  Layers,
+} from "lucide-react";
 
 type MapMode = "standard" | "satellite" | "terrain" | "hybrid";
 
-const MAP_LAYERS: Record<MapMode, { url: string; attribution: string }[]> = {
-  standard: [
-    { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "&copy; OpenStreetMap" },
-  ],
-  satellite: [
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "&copy; Esri" },
-  ],
-  terrain: [
-    { url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attribution: "&copy; OpenTopoMap" },
-    { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "" },
-  ],
-  hybrid: [
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "&copy; Esri" },
-    { url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", attribution: "" },
-  ],
+const MAP_MODE_TYPES: Record<MapMode, google.maps.MapTypeId> = {
+  standard: google.maps.MapTypeId.ROADMAP,
+  satellite: google.maps.MapTypeId.SATELLITE,
+  terrain: google.maps.MapTypeId.TERRAIN,
+  hybrid: google.maps.MapTypeId.HYBRID,
 };
 
 const MAP_MODE_ICONS: Record<MapMode, React.ReactNode> = {
-  standard: <Map className="size-3.5" />,
+  standard: <MapIcon className="size-3.5" />,
   satellite: <Satellite className="size-3.5" />,
   terrain: <Mountain className="size-3.5" />,
   hybrid: <Layers className="size-3.5" />,
@@ -55,44 +45,27 @@ const MAP_MODE_LABELS: Record<MapMode, string> = {
   hybrid: "Hybrid",
 };
 
-// UTM Zone 45N (covers West Bengal/East India) → WGS84
-proj4.defs("EPSG:32645", "+proj=utm +zone=45 +datum=WGS84 +units=m +no_defs");
+proj4.defs(
+  "EPSG:32645",
+  "+proj=utm +zone=45 +datum=WGS84 +units=m +no_defs"
+);
 
-/** Transform a coordinate to [lat, lon]. If already WGS84, returns as-is. */
-function toLatLng(
-  lat: number,
-  lon: number
-): [number, number] {
+function toLatLng(lat: number, lon: number): [number, number] {
   if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return [lat, lon];
   const [x, y] = proj4("EPSG:32645", "WGS84", [lon, lat]);
   return [y, x];
 }
 
-const DEFAULT_CENTER: [number, number] = [28.6139, 77.209]; // Delhi
+const DEFAULT_CENTER = { lat: 28.6139, lng: 77.209 };
 
-/** Imperatively adds/removes tile layers when map mode changes, avoiding Leaflet container reuse. */
-function MapLayerManager({ mapMode }: { mapMode: MapMode }) {
+function MapTypeController({ mapMode }: { mapMode: MapMode }) {
   const map = useMap();
-  const layerRefs = React.useRef<L.TileLayer[]>([]);
-
   React.useEffect(() => {
-    // Remove previous layers
-    for (const layer of layerRefs.current) {
-      map.removeLayer(layer);
-    }
-    layerRefs.current = [];
-
-    // Add new layers
-    for (const cfg of MAP_LAYERS[mapMode]) {
-      const layer = L.tileLayer(cfg.url, { attribution: cfg.attribution }).addTo(map);
-      layerRefs.current.push(layer);
-    }
+    if (map) map.setMapTypeId(MAP_MODE_TYPES[mapMode]);
   }, [mapMode, map]);
-
   return null;
 }
 
-/** Fits map to geofences first, then vehicle positions as fallback — refits when toggle changes. */
 function FitBounds({
   positions,
   geofences,
@@ -106,38 +79,44 @@ function FitBounds({
   const lastFittedRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    // Build a key from current state so we refit when geofence toggle changes
-    const gfCount = showGeofences ? geofences.filter((g) => g.enabled).length : 0;
+    if (!map) return;
+
+    const gfCount = showGeofences
+      ? geofences.filter((g) => g.enabled).length
+      : 0;
     const key = `${gfCount}-${positions.length}`;
     if (lastFittedRef.current === key) return;
 
-    // Collect all lat/lng points from enabled geofences
-    const geofencePoints: [number, number][] = [];
+    const geofencePoints: google.maps.LatLngLiteral[] = [];
     if (showGeofences) {
       for (const gf of geofences) {
         if (!gf.enabled) continue;
         if (gf.type === "circle" && gf.coordinates?.center) {
-          const [lat, lon] = toLatLng(gf.coordinates.center.lat, gf.coordinates.center.lon);
-          geofencePoints.push([lat, lon]);
+          const [lat, lon] = toLatLng(
+            gf.coordinates.center.lat,
+            gf.coordinates.center.lon
+          );
+          geofencePoints.push({ lat, lng: lon });
         }
         if (gf.type === "polygon" && gf.coordinates?.points) {
           for (const p of gf.coordinates.points) {
             const [lat, lon] = toLatLng(p.lat, p.lon);
-            geofencePoints.push([lat, lon]);
+            geofencePoints.push({ lat, lng: lon });
           }
         }
       }
     }
 
-    // Prefer geofences, fall back to vehicle positions
-    const points = geofencePoints.length > 0
-      ? geofencePoints
-      : positions.map((p) => [p.latitude, p.longitude] as [number, number]);
+    const points =
+      geofencePoints.length > 0
+        ? geofencePoints
+        : positions.map((p) => ({ lat: p.latitude, lng: p.longitude }));
 
     if (points.length === 0) return;
 
-    const bounds = L.latLngBounds(points);
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    const bounds = new google.maps.LatLngBounds();
+    for (const pt of points) bounds.extend(pt);
+    map.fitBounds(bounds, 50);
     lastFittedRef.current = key;
   }, [positions, geofences, showGeofences, map]);
 
@@ -148,8 +127,10 @@ function calcDistance(points: TrailPoint[]): number {
   let total = 0;
   for (let i = 1; i < points.length; i++) {
     const R = 6371;
-    const dLat = ((points[i].latitude - points[i - 1].latitude) * Math.PI) / 180;
-    const dLon = ((points[i].longitude - points[i - 1].longitude) * Math.PI) / 180;
+    const dLat =
+      ((points[i].latitude - points[i - 1].latitude) * Math.PI) / 180;
+    const dLon =
+      ((points[i].longitude - points[i - 1].longitude) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) ** 2 +
       Math.cos((points[i - 1].latitude * Math.PI) / 180) *
@@ -160,131 +141,150 @@ function calcDistance(points: TrailPoint[]): number {
   return total;
 }
 
-function createCircleIcon(color: string, label: string): L.DivIcon {
-  return L.divIcon({
-    className: "trail-endpoint",
-    html: `
-      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-        <div style="
-          width:14px;height:14px;border-radius:50%;
-          background:${color};border:2.5px solid #fff;
-          box-shadow:0 0 6px ${color};
-        "></div>
-        <span style="
-          position:absolute;top:-20px;left:50%;transform:translateX(-50%);
-          background:#171717;color:#fff;font-size:9px;font-weight:600;
-          padding:1px 5px;border-radius:3px;white-space:nowrap;
-          box-shadow:0 1px 3px rgba(0,0,0,.4);
-        ">${label}</span>
-      </div>
-    `,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-  });
+function createCircleIconHtml(color: string, label: string): string {
+  return `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:14px;height:14px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 0 6px ${color};"></div>
+    <span style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:#171717;color:#fff;font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4);">${label}</span>
+  </div>`;
 }
 
-/** Renders a highlighted polyline trail with glow, arrows, start/end markers, and stats popup. */
+function createVehicleIconHtml(
+  plateNumber: string | null,
+  movement: string | null
+): string {
+  const color =
+    movement === "MOVING"
+      ? "#22c55e"
+      : movement === "STOPPED"
+        ? "#f97316"
+        : "#64748b";
+  const glow =
+    movement === "MOVING"
+      ? "rgba(34,197,94,0.5)"
+      : movement === "STOPPED"
+        ? "rgba(249,115,22,0.4)"
+        : "rgba(100,116,139,0.3)";
+  const plateHtml = plateNumber
+    ? `<span style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:${color};color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;letter-spacing:0.4px;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.3);">${plateNumber}</span>`
+    : "";
+  return `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}, 0 0 8px ${glow};"></div>
+    <div style="width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;box-shadow:0 0 4px ${glow};"></div>
+    ${plateHtml}
+  </div>`;
+}
+
 function TrailLine({ points }: { points: TrailPoint[] }) {
   const map = useMap();
 
   React.useEffect(() => {
-    if (points.length < 2) return;
+    if (!map || points.length < 2) return;
 
     const latLngs = points.map(
-      (p) => [p.latitude, p.longitude] as [number, number]
+      (p) => new google.maps.LatLng(p.latitude, p.longitude)
     );
 
-    // --- Glow polyline (wider, transparent) ---
-    const glow = L.polyline(latLngs, {
-      color: "#fb923c",
-      weight: 10,
-      opacity: 0.25,
-      lineCap: "round",
-      lineJoin: "round",
-    }).addTo(map);
+    const glow = new google.maps.Polyline({
+      path: latLngs,
+      strokeColor: "#fb923c",
+      strokeWeight: 10,
+      strokeOpacity: 0.25,
+      map,
+      clickable: false,
+    });
 
-    // --- Main polyline ---
-    const mainLine = L.polyline(latLngs, {
-      color: "#f97316",
-      weight: 4,
-      opacity: 1,
-      lineCap: "round",
-      lineJoin: "round",
-    }).addTo(map);
-
-    // --- Direction arrows (larger, filled) ---
-    const LDecor = (L as any);
-    const decorator = LDecor.polylineDecorator(mainLine, {
-      patterns: [
+    const mainLine = new google.maps.Polyline({
+      path: latLngs,
+      strokeColor: "#f97316",
+      strokeWeight: 4,
+      strokeOpacity: 1,
+      map,
+      clickable: true,
+      icons: [
         {
-          offset: "5%",
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_OPEN_ARROW,
+            strokeColor: "#c2410c",
+            fillColor: "#f97316",
+            fillOpacity: 1,
+            strokeWeight: 0,
+            scale: 4,
+          },
+          offset: "0%",
           repeat: "12%",
-          symbol: LDecor.Symbol?.arrowHead({
-            pixelSize: 14,
-            polygon: true,
-            pathOptions: {
-              color: "#c2410c",
-              fillColor: "#f97316",
-              fillOpacity: 1,
-              weight: 0,
-            },
-          }) ?? { pixelSize: 14 },
         },
       ],
-    }).addTo(map);
+    });
 
-    // --- Start marker (green) ---
     const startTime = new Date(points[0].timestamp);
     const startLabel = startTime.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const startMarker = L.marker(latLngs[0], {
-      icon: createCircleIcon("#22c55e", startLabel),
-    }).addTo(map);
+    const startEl = document.createElement("div");
+    startEl.innerHTML = createCircleIconHtml("#22c55e", startLabel);
+    const startMarker = new google.maps.marker.AdvancedMarkerElement({
+      position: latLngs[0],
+      content: startEl,
+      map,
+    });
 
-    // --- End marker (red) ---
     const endTime = new Date(points[points.length - 1].timestamp);
     const endLabel = endTime.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const endMarker = L.marker(latLngs[latLngs.length - 1], {
-      icon: createCircleIcon("#ef4444", endLabel),
-    }).addTo(map);
+    const endEl = document.createElement("div");
+    endEl.innerHTML = createCircleIconHtml("#ef4444", endLabel);
+    const endMarker = new google.maps.marker.AdvancedMarkerElement({
+      position: latLngs[latLngs.length - 1],
+      content: endEl,
+      map,
+    });
 
-    // --- Trail stats popup on line click ---
     const distance = calcDistance(points);
     const durationMs = endTime.getTime() - startTime.getTime();
     const hours = Math.floor(durationMs / 3600000);
     const minutes = Math.floor((durationMs % 3600000) / 60000);
     const avgSpeed = hours > 0 ? distance / (durationMs / 3600000) : 0;
 
-    const statsHtml = `
-      <div style="font-size:12px;line-height:1.5;min-width:140px">
-        <div style="font-weight:700;margin-bottom:4px">Today's Trail</div>
-        <div>${points[0].timestamp.split("T")[0]}</div>
-        <div><b>${distance.toFixed(2)}</b> km total</div>
-        <div><b>${hours}h ${minutes}m</b> duration</div>
-        <div><b>${avgSpeed.toFixed(1)}</b> km/h avg</div>
-        <div style="margin-top:4px;font-size:10px;color:#6b7280">
-          ${points.length} GPS points
-        </div>
-      </div>
-    `;
-    mainLine.bindPopup(statsHtml);
-    glow.on("click", () => mainLine.openPopup());
+    const statsHtml = `<div style="font-size:12px;line-height:1.5;min-width:140px">
+      <div style="font-weight:700;margin-bottom:4px">Today's Trail</div>
+      <div>${points[0].timestamp.split("T")[0]}</div>
+      <div><b>${distance.toFixed(2)}</b> km total</div>
+      <div><b>${hours}h ${minutes}m</b> duration</div>
+      <div><b>${avgSpeed.toFixed(1)}</b> km/h avg</div>
+      <div style="margin-top:4px;font-size:10px;color:#6b7280">${points.length} GPS points</div>
+    </div>`;
 
-    // --- Fit map to trail ---
-    map.fitBounds(mainLine.getBounds(), { padding: [50, 50] });
+    const infoWindow = new google.maps.InfoWindow({ content: statsHtml });
+    const clickHandler = mainLine.addListener(
+      "click",
+      (e: google.maps.PolyMouseEvent) => {
+        infoWindow.setPosition(e.latLng);
+        infoWindow.open({ map });
+      }
+    );
+    const glowHandler = glow.addListener(
+      "click",
+      (e: google.maps.PolyMouseEvent) => {
+        infoWindow.setPosition(e.latLng);
+        infoWindow.open({ map });
+      }
+    );
+
+    const bounds = new google.maps.LatLngBounds();
+    for (const ll of latLngs) bounds.extend(ll);
+    map.fitBounds(bounds, 50);
 
     return () => {
-      map.removeLayer(decorator);
-      map.removeLayer(mainLine);
-      map.removeLayer(glow);
-      map.removeLayer(startMarker);
-      map.removeLayer(endMarker);
-      mainLine.closePopup();
+      google.maps.event.removeListener(clickHandler);
+      google.maps.event.removeListener(glowHandler);
+      infoWindow.close();
+      glow.setMap(null);
+      mainLine.setMap(null);
+      startMarker.map = null;
+      endMarker.map = null;
     };
   }, [points, map]);
 
@@ -296,40 +296,110 @@ function formatSpeed(speed: number | null): string {
   return `${parseFloat(speed.toFixed(2))} km/h`;
 }
 
-function createVehicleIcon(plateNumber: string | null, movement: string | null): L.DivIcon {
-  const color =
-    movement === "MOVING" ? "#22c55e" :
-    movement === "STOPPED" ? "#f97316" :
-    "#64748b";
-  const glow =
-    movement === "MOVING" ? "rgba(34,197,94,0.5)" :
-    movement === "STOPPED" ? "rgba(249,115,22,0.4)" :
-    "rgba(100,116,139,0.3)";
-  return L.divIcon({
-    className: "vehicle-marker",
-    html: `
-      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-        <div style="
-          width:12px;height:12px;border-radius:50%;
-          background:${color};border:2px solid #fff;
-          box-shadow:0 0 0 2px ${color}, 0 0 8px ${glow};
-        "></div>
-        <div style="
-          width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;
-          box-shadow:0 0 4px ${glow};
-        "></div>
-        ${plateNumber ? `<span style="
-          position:absolute;top:-20px;left:50%;transform:translateX(-50%);
-          background:${color};color:#fff;font-size:8px;font-weight:700;
-          padding:1px 5px;border-radius:3px;white-space:nowrap;
-          letter-spacing:0.4px;pointer-events:none;
-          box-shadow:0 1px 4px rgba(0,0,0,.3);
-        ">${plateNumber}</span>` : ""}
-      </div>
-    `,
-    iconSize: [14, 16],
-    iconAnchor: [7, 16],
-  });
+function GeofenceOverlays({
+  geofences,
+  showGeofences,
+}: {
+  geofences: Geofence[];
+  showGeofences: boolean;
+}) {
+  const map = useMap();
+  const circlesRef = useRef<google.maps.Circle[]>([]);
+  const polygonsRef = useRef<google.maps.Polygon[]>([]);
+
+  React.useEffect(() => {
+    if (!map) return;
+
+    for (const c of circlesRef.current) c.setMap(null);
+    for (const p of polygonsRef.current) p.setMap(null);
+    circlesRef.current = [];
+    polygonsRef.current = [];
+
+    if (!showGeofences) return;
+
+    for (const gf of geofences) {
+      if (!gf.enabled) continue;
+      if (gf.type === "circle") {
+        const center = gf.coordinates?.center;
+        const radius = gf.coordinates?.radiusMeters;
+        if (!center || !radius) continue;
+        const [lat, lon] = toLatLng(center.lat, center.lon);
+        circlesRef.current.push(
+          new google.maps.Circle({
+            center: { lat, lng: lon },
+            radius,
+            strokeColor: "#3b82f6",
+            fillColor: "#3b82f6",
+            fillOpacity: 0.1,
+            strokeWeight: 2,
+            clickable: false,
+            map,
+          })
+        );
+      }
+      if (gf.type === "polygon") {
+        const pts = gf.coordinates?.points;
+        if (!pts || !Array.isArray(pts) || pts.length < 3) continue;
+        const path = pts.map((p: { lat: number; lon: number }) => {
+          const [lat, lon] = toLatLng(p.lat, p.lon);
+          return { lat, lng: lon };
+        });
+        polygonsRef.current.push(
+          new google.maps.Polygon({
+            paths: path,
+            strokeColor: "#8b5cf6",
+            fillColor: "#8b5cf6",
+            fillOpacity: 0.1,
+            strokeWeight: 2,
+            clickable: false,
+            map,
+          })
+        );
+      }
+    }
+
+    return () => {
+      for (const c of circlesRef.current) c.setMap(null);
+      for (const p of polygonsRef.current) p.setMap(null);
+      circlesRef.current = [];
+      polygonsRef.current = [];
+    };
+  }, [map, geofences, showGeofences]);
+
+  return null;
+}
+
+function VehicleMarker({
+  pos,
+  onClick,
+}: {
+  pos: LivePosition;
+  onClick: () => void;
+}) {
+  return (
+    <AdvancedMarker
+      position={{ lat: pos.latitude, lng: pos.longitude }}
+      onClick={onClick}
+    >
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          cursor: "pointer",
+        }}
+        title={pos.plateNumber ?? "Unknown"}
+        dangerouslySetInnerHTML={{
+          __html: createVehicleIconHtml(pos.plateNumber, pos.movement),
+        }}
+      />
+    </AdvancedMarker>
+  );
+}
+
+function formatTimestamp(ts: string): string {
+  return new Date(ts).toLocaleString();
 }
 
 interface LiveMapProps {
@@ -339,14 +409,19 @@ interface LiveMapProps {
 
 export function LiveMap({ initialPositions, token }: LiveMapProps) {
   const { positions, connected, setInitialPositions } = useLiveMap(token);
-  const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(new Set());
+  const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(
+    new Set()
+  );
   const [showGeofences, setShowGeofences] = useState(true);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapMode, setMapMode] = useState<MapMode>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("live-map-mode");
-      if (saved && ["standard", "satellite", "terrain", "hybrid"].includes(saved)) {
+      if (
+        saved &&
+        ["standard", "satellite", "terrain", "hybrid"].includes(saved)
+      ) {
         return saved as MapMode;
       }
     }
@@ -357,25 +432,30 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     setMapMode(mode);
     localStorage.setItem("live-map-mode", mode);
   }, []);
+
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(
+    null
+  );
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const [trailLoading, setTrailLoading] = useState(false);
+  const [selectedMarkerDeviceId, setSelectedMarkerDeviceId] = useState<
+    string | null
+  >(null);
 
-  // Merge initial positions
   React.useEffect(() => {
     if (initialPositions.length > 0) {
       setInitialPositions(initialPositions);
-      setVisibleVehicles(new Set(initialPositions.map((p) => p.deviceId)));
+      setVisibleVehicles(
+        new Set(initialPositions.map((p) => p.deviceId))
+      );
     }
   }, [initialPositions, setInitialPositions]);
 
-  // Load geofences
   React.useEffect(() => {
     api.geofences.list().then(setGeofences).catch(() => {});
   }, []);
 
-  // Close map mode menu on outside click
   React.useEffect(() => {
     if (!modeMenuOpen) return;
     const handler = () => setModeMenuOpen(false);
@@ -383,26 +463,27 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     return () => document.removeEventListener("click", handler);
   }, [modeMenuOpen]);
 
-  // Fetch trail when selected vehicle changes
-  const selectVehicle = useCallback(async (deviceId: string) => {
-    if (selectedDeviceId === deviceId) {
-      setSelectedDeviceId(null);
-      setTrail([]);
-      return;
-    }
-    setSelectedDeviceId(deviceId);
-    // Close sidebar on mobile so user can see the trail
-    if (window.innerWidth < 768) setSidebarOpen(false);
-    setTrailLoading(true);
-    try {
-      const data = await api.telemetry.trail(deviceId);
-      setTrail(data);
-    } catch {
-      setTrail([]);
-    } finally {
-      setTrailLoading(false);
-    }
-  }, [selectedDeviceId]);
+  const selectVehicle = useCallback(
+    async (deviceId: string) => {
+      if (selectedDeviceId === deviceId) {
+        setSelectedDeviceId(null);
+        setTrail([]);
+        return;
+      }
+      setSelectedDeviceId(deviceId);
+      if (window.innerWidth < 768) setSidebarOpen(false);
+      setTrailLoading(true);
+      try {
+        const data = await api.telemetry.trail(deviceId);
+        setTrail(data);
+      } catch {
+        setTrail([]);
+      } finally {
+        setTrailLoading(false);
+      }
+    },
+    [selectedDeviceId]
+  );
 
   const toggleVehicle = useCallback((deviceId: string) => {
     setVisibleVehicles((prev) => {
@@ -422,11 +503,17 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   }, []);
 
   const allPositions = Array.from(positions.values());
-  const visiblePositions = allPositions.filter((p) => visibleVehicles.has(p.deviceId));
+  const visiblePositions = allPositions.filter((p) =>
+    visibleVehicles.has(p.deviceId)
+  );
+
+  const selectedPos = selectedMarkerDeviceId
+    ? visiblePositions.find((p) => p.deviceId === selectedMarkerDeviceId) ??
+      allPositions.find((p) => p.deviceId === selectedMarkerDeviceId)
+    : null;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-[998] bg-black/50 md:hidden"
@@ -434,7 +521,6 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
         />
       )}
 
-      {/* Sidebar — overlay on mobile, inline on desktop */}
       {sidebarOpen && (
         <div
           className={cn(
@@ -459,72 +545,66 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
         </div>
       )}
 
-      {/* Map — fills remaining space */}
       <div className="relative flex-1">
-        <MapContainer
-          center={DEFAULT_CENTER}
-          zoom={12}
-          className="h-full w-full"
-          zoomControl={false}
+        <Map
+          defaultCenter={DEFAULT_CENTER}
+          defaultZoom={12}
+          mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID}
+          gestureHandling="greedy"
+          disableDefaultUI={true}
+          style={{ width: "100%", height: "100%" }}
         >
-          <MapLayerManager mapMode={mapMode} />
+          <MapTypeController mapMode={mapMode} />
 
-          <FitBounds positions={visiblePositions} geofences={geofences} showGeofences={showGeofences} />
+          <FitBounds
+            positions={visiblePositions}
+            geofences={geofences}
+            showGeofences={showGeofences}
+          />
 
           {trail.length >= 2 && <TrailLine points={trail} />}
 
+          <GeofenceOverlays
+            geofences={geofences}
+            showGeofences={showGeofences}
+          />
+
           {visiblePositions.map((pos) => (
-            <Marker
+            <VehicleMarker
               key={pos.deviceId}
-              position={[pos.latitude, pos.longitude]}
-              icon={createVehicleIcon(pos.plateNumber, pos.movement)}
-            >
-              <Popup>
-                <div className="min-w-[180px] space-y-1 text-sm">
-                  <p className="font-semibold">{pos.plateNumber ?? "Unknown"}</p>
-                  <p>Speed: {formatSpeed(pos.speed)}</p>
-                  <p>Ignition: {pos.ignition ?? "N/A"}</p>
-                  <p>Lat: {pos.latitude.toFixed(6)}</p>
-                  <p>Lng: {pos.longitude.toFixed(6)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(pos.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
+              pos={pos}
+              onClick={() => {
+                setSelectedMarkerDeviceId((prev) =>
+                  prev === pos.deviceId ? null : pos.deviceId
+                );
+              }}
+            />
           ))}
 
-          {showGeofences && geofences.filter((gf) => gf.enabled).map((gf) => {
-            if (gf.type === "circle") {
-              const center = gf.coordinates?.center;
-              const radius = gf.coordinates?.radiusMeters;
-              if (!center || !radius) return null;
-              const [lat, lon] = toLatLng(center.lat, center.lon);
-              return (
-                <Circle
-                  key={gf.id}
-                  center={[lat, lon]}
-                  radius={radius}
-                  pathOptions={{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.1, weight: 2 }}
-                />
-              );
-            }
-            if (gf.type === "polygon") {
-              const points = gf.coordinates?.points;
-              if (!points || !Array.isArray(points) || points.length < 3) return null;
-              return (
-                <Polygon
-                  key={gf.id}
-                  positions={points.map((p: { lat: number; lon: number }) => toLatLng(p.lat, p.lon))}
-                  pathOptions={{ color: "#8b5cf6", fillColor: "#8b5cf6", fillOpacity: 0.1, weight: 2 }}
-                />
-              );
-            }
-            return null;
-          })}
-        </MapContainer>
+          {selectedPos && (
+            <InfoWindow
+              position={{
+                lat: selectedPos.latitude,
+                lng: selectedPos.longitude,
+              }}
+              onCloseClick={() => setSelectedMarkerDeviceId(null)}
+            >
+              <div className="min-w-[180px] space-y-1 text-sm">
+                <p className="font-semibold">
+                  {selectedPos.plateNumber ?? "Unknown"}
+                </p>
+                <p>Speed: {formatSpeed(selectedPos.speed)}</p>
+                <p>Ignition: {selectedPos.ignition ?? "N/A"}</p>
+                <p>Lat: {selectedPos.latitude.toFixed(6)}</p>
+                <p>Lng: {selectedPos.longitude.toFixed(6)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatTimestamp(selectedPos.timestamp)}
+                </p>
+              </div>
+            </InfoWindow>
+          )}
+        </Map>
 
-        {/* Reopen sidebar button — shown when sidebar is closed */}
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
@@ -534,25 +614,34 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
           </button>
         )}
 
-        {/* Map mode switcher */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] max-md:top-16">
           <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); setModeMenuOpen((p) => !p); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setModeMenuOpen((p) => !p);
+              }}
               className="flex items-center gap-1.5 rounded-lg border bg-background/90 px-3 py-2 text-xs font-medium shadow-sm backdrop-blur hover:bg-accent md:py-1.5"
             >
               {MAP_MODE_ICONS[mapMode]}
-              <span className="hidden sm:inline">{MAP_MODE_LABELS[mapMode]}</span>
+              <span className="hidden sm:inline">
+                {MAP_MODE_LABELS[mapMode]}
+              </span>
             </button>
             {modeMenuOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-32 rounded-lg border bg-background p-1 shadow-lg">
-                {(Object.keys(MAP_LAYERS) as MapMode[]).map((mode) => (
+                {(Object.keys(MAP_MODE_TYPES) as MapMode[]).map((mode) => (
                   <button
                     key={mode}
-                    onClick={() => { handleMapModeChange(mode); setModeMenuOpen(false); }}
+                    onClick={() => {
+                      handleMapModeChange(mode);
+                      setModeMenuOpen(false);
+                    }}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors",
-                      mapMode === mode ? "bg-accent font-medium" : "hover:bg-accent/50"
+                      mapMode === mode
+                        ? "bg-accent font-medium"
+                        : "hover:bg-accent/50"
                     )}
                   >
                     {MAP_MODE_ICONS[mode]}
@@ -564,9 +653,10 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
           </div>
         </div>
 
-        {/* Connection indicator — floating on map */}
         <div className="absolute top-4 right-4 z-[1000] flex items-center gap-2 rounded-lg border bg-background/90 px-2.5 py-1.5 shadow-sm backdrop-blur md:px-3">
-          <div className={`size-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
+          <div
+            className={`size-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`}
+          />
           <span className="text-xs font-medium">
             {connected ? "Live" : "Disconnected"}
           </span>

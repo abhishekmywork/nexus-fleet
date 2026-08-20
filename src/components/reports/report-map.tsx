@@ -2,15 +2,11 @@
 
 import * as React from "react";
 import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  Polyline,
+  Map,
   useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+  AdvancedMarker,
+  InfoWindow,
+} from "@vis.gl/react-google-maps";
 import type { Column } from "./report-shell";
 
 function fmtCoord(val: any): number | null {
@@ -23,30 +19,83 @@ function fmtTimestamp(val?: string): string {
   return val ? new Date(val).toLocaleString() : "—";
 }
 
-function createMarkerIcon(color: string): L.DivIcon {
-  return L.divIcon({
-    className: "report-marker",
-    html: `<div style="
-      width:12px;height:12px;border-radius:50%;
-      background:${color};border:2px solid #fff;
-      box-shadow:0 1px 4px rgba(0,0,0,.4);
-    "></div>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-  });
+function MarkerIcon({ color }: { color: string }) {
+  return (
+    <div
+      style={{
+        width: 12,
+        height: 12,
+        borderRadius: "50%",
+        background: color,
+        border: "2px solid #fff",
+        boxShadow: "0 1px 4px rgba(0,0,0,.4)",
+      }}
+    />
+  );
 }
 
-const ICON_BLUE = createMarkerIcon("#3b82f6");
-const ICON_GREEN = createMarkerIcon("#22c55e");
-const ICON_RED = createMarkerIcon("#ef4444");
+const COLOR_BLUE = "#3b82f6";
+const COLOR_GREEN = "#22c55e";
+const COLOR_RED = "#ef4444";
+
+interface MarkerData {
+  lat: number;
+  lon: number;
+  label: string;
+  color: string;
+  popupHtml: string;
+}
+
+interface PolylineData {
+  points: [number, number][];
+  color: string;
+}
 
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   React.useEffect(() => {
-    if (points.length === 0) return;
-    const bounds = L.latLngBounds(points);
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    if (!map || points.length === 0) return;
+    const bounds = new google.maps.LatLngBounds();
+    for (const [lat, lng] of points) {
+      bounds.extend({ lat, lng });
+    }
+    map.fitBounds(bounds, 40);
   }, [points, map]);
+  return null;
+}
+
+function TripTrails({
+  polylines,
+}: {
+  polylines: PolylineData[];
+}) {
+  const map = useMap();
+  const polylinesRef = React.useRef<google.maps.Polyline[]>([]);
+
+  React.useEffect(() => {
+    if (!map) return;
+
+    polylinesRef.current.forEach((p) => p.setMap(null));
+    polylinesRef.current = [];
+
+    for (const pl of polylines) {
+      const path = pl.points.map(([lat, lng]) => ({ lat, lng }));
+      const polyline = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor: pl.color,
+        strokeWeight: 4,
+        strokeOpacity: 0.9,
+      });
+      polylinesRef.current.push(polyline);
+    }
+
+    return () => {
+      polylinesRef.current.forEach((p) => p.setMap(null));
+      polylinesRef.current = [];
+    };
+  }, [map, polylines]);
+
   return null;
 }
 
@@ -56,21 +105,18 @@ interface ReportMapProps {
 }
 
 export function ReportMap({ data, columns }: ReportMapProps) {
+  const [openInfoWindow, setOpenInfoWindow] = React.useState<number | null>(
+    null
+  );
+
   const { markers, polylines, center } = React.useMemo(() => {
-    const markers: {
-      lat: number;
-      lon: number;
-      label: string;
-      icon: L.DivIcon;
-      popup: string;
-    }[] = [];
-    const polylines: { points: [number, number][]; color: string }[] = [];
+    const markers: MarkerData[] = [];
+    const polylines: PolylineData[] = [];
     const allPoints: [number, number][] = [];
 
     for (const row of data) {
       const plate = row.plateNumber ?? "Unknown";
 
-      // Trip reports: start/end + trail points
       if (Array.isArray(row.points) && row.points.length >= 2) {
         const trail: [number, number][] = row.points
           .map((p: any) => [p.lat, p.lon] as [number, number])
@@ -88,37 +134,39 @@ export function ReportMap({ data, columns }: ReportMapProps) {
             lat: trail[0][0],
             lon: trail[0][1],
             label: plate,
-            icon: ICON_GREEN,
-            popup: `<b>${plate}</b><br/>Start: ${fmtTimestamp(row.startTime)}<br/>Distance: ${row.distanceKm ?? "—"} km`,
+            color: COLOR_GREEN,
+            popupHtml: `<b>${plate}</b><br/>Start: ${fmtTimestamp(row.startTime)}<br/>Distance: ${row.distanceKm ?? "—"} km`,
           });
           markers.push({
             lat: trail[trail.length - 1][0],
             lon: trail[trail.length - 1][1],
             label: "",
-            icon: ICON_RED,
-            popup: `<b>${plate}</b><br/>End: ${fmtTimestamp(row.endTime)}`,
+            color: COLOR_RED,
+            popupHtml: `<b>${plate}</b><br/>End: ${fmtTimestamp(row.endTime)}`,
           });
         }
         continue;
       }
 
-      // Single point reports (events, violations, etc.)
       const lat = fmtCoord(row.latitude ?? row.startLat);
       const lon = fmtCoord(row.longitude ?? row.startLon);
       if (lat != null && lon != null) {
         allPoints.push([lat, lon]);
         const parts = [`<b>${plate}</b>`];
         if (row.eventType) parts.push(`Event: ${row.eventType}`);
-        if (row.speed != null) parts.push(`Speed: ${Number(row.speed).toFixed(1)} km/h`);
+        if (row.speed != null)
+          parts.push(`Speed: ${Number(row.speed).toFixed(1)} km/h`);
         if (row.timestamp) parts.push(`Time: ${fmtTimestamp(row.timestamp)}`);
-        if (row.startedAt) parts.push(`Start: ${fmtTimestamp(row.startedAt)}`);
-        if (row.geofenceName) parts.push(`Geofence: ${row.geofenceName}`);
+        if (row.startedAt)
+          parts.push(`Start: ${fmtTimestamp(row.startedAt)}`);
+        if (row.geofenceName)
+          parts.push(`Geofence: ${row.geofenceName}`);
         markers.push({
           lat,
           lon,
           label: plate,
-          icon: ICON_BLUE,
-          popup: parts.join("<br/>"),
+          color: COLOR_BLUE,
+          popupHtml: parts.join("<br/>"),
         });
       }
     }
@@ -132,36 +180,42 @@ export function ReportMap({ data, columns }: ReportMapProps) {
   }, [data]);
 
   return (
-    <MapContainer
-      center={center}
-      zoom={12}
-      className="h-full w-full rounded-lg"
-      zoomControl={true}
+    <Map
+      defaultCenter={{ lat: center[0], lng: center[1] }}
+      defaultZoom={12}
+      mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID}
+      gestureHandling="greedy"
+      disableDefaultUI={true}
+      style={{ width: "100%", height: "100%" }}
+      className="rounded-lg"
     >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap"
-      />
       {markers.length > 0 && (
         <FitBounds points={markers.map((m) => [m.lat, m.lon])} />
       )}
-      {polylines.map((pl, i) => (
-        <Polyline
-          key={i}
-          positions={pl.points}
-          pathOptions={{ color: pl.color, weight: 4, opacity: 0.9 }}
-        />
-      ))}
+
+      <TripTrails polylines={polylines} />
+
       {markers.map((m, i) => (
-        <Marker key={i} position={[m.lat, m.lon]} icon={m.icon}>
-          <Popup>
-            <div
-              className="text-sm"
-              dangerouslySetInnerHTML={{ __html: m.popup }}
-            />
-          </Popup>
-        </Marker>
+        <AdvancedMarker
+          key={i}
+          position={{ lat: m.lat, lng: m.lon }}
+          title={m.label}
+          onClick={() => setOpenInfoWindow(i)}
+        >
+          <MarkerIcon color={m.color} />
+          {openInfoWindow === i && (
+            <InfoWindow
+              position={{ lat: m.lat, lng: m.lon }}
+              onCloseClick={() => setOpenInfoWindow(null)}
+            >
+              <div
+                className="text-sm"
+                dangerouslySetInnerHTML={{ __html: m.popupHtml }}
+              />
+            </InfoWindow>
+          )}
+        </AdvancedMarker>
       ))}
-    </MapContainer>
+    </Map>
   );
 }

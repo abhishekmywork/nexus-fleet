@@ -5,6 +5,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { TenantProvider } from "@/components/tenant/tenant-provider";
+import { GoogleMapsProvider } from "@/components/google-maps-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -145,7 +146,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           <TenantProvider>
             <AuthProvider>
-              {children}
+              <GoogleMapsProvider>
+                {children}
+              </GoogleMapsProvider>
               <Toaster richColors position="top-right" />
             </AuthProvider>
           </TenantProvider>

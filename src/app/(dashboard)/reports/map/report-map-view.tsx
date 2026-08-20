@@ -36,107 +36,6 @@ function formatValue(val: any): string {
   return String(val);
 }
 
-function extractLatLng(row: any): { lat: number; lng: number } | null {
-  if (row.latitude != null && row.longitude != null) {
-    return { lat: Number(row.latitude), lng: Number(row.longitude) };
-  }
-  if (row.lat != null && row.lng != null) {
-    return { lat: Number(row.lat), lng: Number(row.lng) };
-  }
-  if (Array.isArray(row.points) && row.points.length > 0) {
-    const p = row.points[0];
-    if (p.latitude != null && p.longitude != null) {
-      return { lat: Number(p.latitude), lng: Number(p.longitude) };
-    }
-  }
-  return null;
-}
-
-async function captureMapForPDF(data: any[]): Promise<string> {
-  const L = (await import("leaflet")).default;
-
-  const points: { lat: number; lng: number }[] = [];
-  const trails: { lat: number; lng: number }[][] = [];
-  const rowMeta: { point: { lat: number; lng: number }; color: string; label: string }[] = [];
-
-  for (const row of data) {
-    const pt = extractLatLng(row);
-    if (pt && isFinite(pt.lat) && isFinite(pt.lng)) {
-      points.push(pt);
-      const label = row.plateNumber || row.deviceId || row.name || "";
-      rowMeta.push({ point: pt, color: "#2563eb", label: String(label) });
-
-      if (Array.isArray(row.points) && row.points.length > 1) {
-        const trail = row.points
-          .map((p: any) => ({
-            lat: Number(p.latitude ?? p.lat),
-            lng: Number(p.longitude ?? p.lng),
-          }))
-          .filter((p: any) => isFinite(p.lat) && isFinite(p.lng));
-        if (trail.length > 1) trails.push(trail);
-      }
-    }
-  }
-
-  if (points.length === 0) throw new Error("No valid coordinates");
-
-  const container = document.createElement("div");
-  container.style.position = "fixed";
-  container.style.top = "-9999px";
-  container.style.left = "-9999px";
-  container.style.width = "1200px";
-  container.style.height = "800px";
-  document.body.appendChild(container);
-
-  const map = L.map(container, {
-    center: [points[0].lat, points[0].lng],
-    zoom: 13,
-    zoomControl: false,
-    attributionControl: false,
-  });
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-  }).addTo(map);
-
-  const blueIcon = L.divIcon({
-    className: "",
-    html: `<div style="width:10px;height:10px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>`,
-    iconSize: [10, 10],
-    iconAnchor: [5, 5],
-  });
-
-  for (const rm of rowMeta) {
-    L.marker([rm.point.lat, rm.point.lng], { icon: blueIcon })
-      .addTo(map)
-      .bindTooltip(rm.label, { permanent: true, direction: "top", offset: [0, -6], className: "" });
-  }
-
-  for (const trail of trails) {
-    L.polyline(trail, { color: "#2563eb", weight: 3, opacity: 0.7 }).addTo(map);
-  }
-
-  map.fitBounds(L.latLngBounds(points).pad(0.1));
-
-  // Wait for tiles to load
-  await new Promise<void>((resolve) => {
-    let done = false;
-    map.whenReady(() => {
-      setTimeout(() => {
-        if (!done) { done = true; resolve(); }
-      }, 1500);
-    });
-    setTimeout(() => { if (!done) { done = true; resolve(); } }, 4000);
-  });
-
-  const imgData = await domToPng(container, { scale: 2, backgroundColor: "#ffffff" });
-
-  map.remove();
-  document.body.removeChild(container);
-
-  return imgData;
-}
-
 export default function ReportMapPage() {
   const router = useRouter();
   const [payload, setPayload] = React.useState<ReportMapData | null>(null);
@@ -144,6 +43,7 @@ export default function ReportMapPage() {
   const [exportOpen, setExportOpen] = React.useState(false);
   const [pdfTitle, setPdfTitle] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
+  const mapContainerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     try {
@@ -163,9 +63,13 @@ export default function ReportMapPage() {
     try {
       let mapImgData: string | null = null;
 
-      if (payload.data.length > 0) {
+      if (payload.data.length > 0 && mapContainerRef.current) {
         try {
-          mapImgData = await captureMapForPDF(payload.data);
+          await new Promise((r) => setTimeout(r, 500));
+          mapImgData = await domToPng(mapContainerRef.current, {
+            scale: 2,
+            backgroundColor: "#ffffff",
+          });
         } catch {
           // Map capture failed, continue without map image
         }
@@ -281,7 +185,7 @@ export default function ReportMapPage() {
       />
       <Card>
         <CardContent className="p-0">
-          <div className="h-[calc(100dvh-220px)]">
+          <div ref={mapContainerRef} className="h-[calc(100dvh-220px)]">
             <ReportMap data={payload.data} columns={payload.columns} />
           </div>
         </CardContent>
