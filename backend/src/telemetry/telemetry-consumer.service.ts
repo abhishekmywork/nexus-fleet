@@ -12,6 +12,7 @@ import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { EventDetectorService } from '../events/event-detector.service';
 import { DeviceStateService } from '../events/device-state.service';
 import { LiveMapGateway, PositionPayload } from '../live-map/live-map.gateway';
+import { GpsCleanerService } from './gps-cleaner.service';
 
 interface TelemetryPayload {
   source?: string;
@@ -62,6 +63,7 @@ export class TelemetryConsumerService
     private readonly eventDetector: EventDetectorService,
     private readonly stateService: DeviceStateService,
     private readonly liveMapGateway: LiveMapGateway,
+    private readonly gpsCleaner: GpsCleanerService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -289,6 +291,14 @@ export class TelemetryConsumerService
       this.logger.log(
         `Batch-inserted ${readings.length} telemetry readings`,
       );
+
+      // Trigger async GPS cleaning for inserted devices (fire-and-forget)
+      const deviceIds = [...new Set(readings.map((r) => r.deviceId))];
+      for (const devId of deviceIds) {
+        this.gpsCleaner.processUnprocessed(devId).catch((err) => {
+          this.logger.error(`GPS cleaning failed for device ${devId}`, err);
+        });
+      }
 
       // Run event detection on each reading (fire-and-forget, don't block ingestion)
       for (const input of detectionInputs) {

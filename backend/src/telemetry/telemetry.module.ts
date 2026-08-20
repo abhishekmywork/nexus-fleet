@@ -7,6 +7,7 @@ import { LiveMapModule } from '../live-map/live-map.module';
 import { TelemetryConsumerService } from './telemetry-consumer.service';
 import { TelemetryService } from './telemetry.service';
 import { TelemetryController } from './telemetry.controller';
+import { GpsCleanerService } from './gps-cleaner.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { TelemetryController } from './telemetry.controller';
     LiveMapModule,
   ],
   controllers: [TelemetryController],
-  providers: [TelemetryConsumerService, TelemetryService],
-  exports: [TelemetryConsumerService, TelemetryService],
+  providers: [TelemetryConsumerService, TelemetryService, GpsCleanerService],
+  exports: [TelemetryConsumerService, TelemetryService, GpsCleanerService],
 })
 export class TelemetryModule {}

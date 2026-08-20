@@ -76,9 +76,17 @@ export class TelemetryService {
         'r.deviceId = latest.deviceId AND r.timestamp = latest.maxTimestamp',
       )
       .leftJoinAndSelect('r.device', 'device')
+      .addSelect([
+        'r.latitudeCleaned',
+        'r.longitudeCleaned',
+      ])
       .getMany();
 
-    return latestPerDevice;
+    return latestPerDevice.map((r) => ({
+      ...r,
+      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
+      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
+    }));
   }
 
   async findTodayTrail(deviceId: string) {
@@ -91,6 +99,8 @@ export class TelemetryService {
         'r.id',
         'r.latitude',
         'r.longitude',
+        'r.latitudeCleaned',
+        'r.longitudeCleaned',
         'r.speed',
         'r.heading',
         'r.ignition',
@@ -103,8 +113,8 @@ export class TelemetryService {
       .getMany();
 
     return readings.map((r) => ({
-      latitude: Number(r.latitude),
-      longitude: Number(r.longitude),
+      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
+      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
       speed: r.speed != null ? Number(r.speed) : null,
       heading: r.heading,
       ignition: r.ignition,

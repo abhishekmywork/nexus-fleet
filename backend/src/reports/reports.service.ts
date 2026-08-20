@@ -65,6 +65,10 @@ export class ReportsService {
       .createQueryBuilder('r')
       .leftJoinAndSelect('r.device', 'd')
       .leftJoinAndSelect('d.vehicle', 'v')
+      .addSelect([
+        'r.latitudeCleaned',
+        'r.longitudeCleaned',
+      ])
       .where('r.deviceId IN (:...deviceIds)', { deviceIds })
       .andWhere('r.timestamp >= :from', { from: q.from })
       .andWhere('r.timestamp <= :to', { to: q.to })
@@ -101,10 +105,11 @@ export class ReportsService {
 
           let dist = 0;
           for (let j = 1; j < seg.length; j++) {
-            dist += this.haversine(
-              Number(seg[j - 1].latitude), Number(seg[j - 1].longitude),
-              Number(seg[j].latitude), Number(seg[j].longitude),
-            );
+            const prevLat = seg[j - 1].latitudeCleaned != null ? Number(seg[j - 1].latitudeCleaned) : Number(seg[j - 1].latitude);
+            const prevLon = seg[j - 1].longitudeCleaned != null ? Number(seg[j - 1].longitudeCleaned) : Number(seg[j - 1].longitude);
+            const curLat = seg[j].latitudeCleaned != null ? Number(seg[j].latitudeCleaned) : Number(seg[j].latitude);
+            const curLon = seg[j].longitudeCleaned != null ? Number(seg[j].longitudeCleaned) : Number(seg[j].longitude);
+            dist += this.haversine(prevLat, prevLon, curLat, curLon);
           }
           const start = seg[0];
           const end = seg[seg.length - 1];
@@ -123,13 +128,13 @@ export class ReportsService {
             distanceKm: Math.round(dist * 100) / 100,
             avgSpeed: Math.round(avgSpd * 100) / 100,
             maxSpeed: Math.round(maxSpd * 100) / 100,
-            startLat: Number(start.latitude),
-            startLon: Number(start.longitude),
-            endLat: Number(end.latitude),
-            endLon: Number(end.longitude),
+            startLat: start.latitudeCleaned != null ? Number(start.latitudeCleaned) : Number(start.latitude),
+            startLon: start.longitudeCleaned != null ? Number(start.longitudeCleaned) : Number(start.longitude),
+            endLat: end.latitudeCleaned != null ? Number(end.latitudeCleaned) : Number(end.latitude),
+            endLon: end.longitudeCleaned != null ? Number(end.longitudeCleaned) : Number(end.longitude),
             points: seg.map((s) => ({
-              lat: Number(s.latitude),
-              lon: Number(s.longitude),
+              lat: s.latitudeCleaned != null ? Number(s.latitudeCleaned) : Number(s.latitude),
+              lon: s.longitudeCleaned != null ? Number(s.longitudeCleaned) : Number(s.longitude),
               ts: s.timestamp,
             })),
           });
@@ -151,13 +156,13 @@ export class ReportsService {
       WITH ordered AS (
         SELECT
           "deviceId",
-          latitude,
-          longitude,
+          COALESCE("latitudeCleaned", latitude) AS latitude,
+          COALESCE("longitudeCleaned", longitude) AS longitude,
           speed,
           movement,
           timestamp,
-          LAG(latitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
-          LAG(longitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(COALESCE("latitudeCleaned", latitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(COALESCE("longitudeCleaned", longitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
           LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
         FROM gps_readings
         WHERE "deviceId" = ANY($1)
@@ -241,8 +246,8 @@ export class ReportsService {
       timestamp: r.timestamp,
       speed: Number(r.speed),
       speedLimit,
-      latitude: Number(r.latitude),
-      longitude: Number(r.longitude),
+      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
+      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
     }));
   }
 
@@ -435,12 +440,12 @@ export class ReportsService {
         SELECT
           r."deviceId",
           r.speed,
-          r.latitude,
-          r.longitude,
+          COALESCE(r."latitudeCleaned", r.latitude) AS latitude,
+          COALESCE(r."longitudeCleaned", r.longitude) AS longitude,
           r.timestamp,
           LAG(r.timestamp) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_ts,
-          LAG(r.latitude) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lat,
-          LAG(r.longitude) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lon
+          LAG(COALESCE(r."latitudeCleaned", r.latitude)) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lat,
+          LAG(COALESCE(r."longitudeCleaned", r.longitude)) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lon
         FROM gps_readings r
         JOIN gps_devices g ON g.id = r."deviceId"
         JOIN vehicles v ON v.id = g."vehicleId"
@@ -564,13 +569,13 @@ export class ReportsService {
       WITH ordered AS (
         SELECT
           "deviceId",
-          latitude,
-          longitude,
+          COALESCE("latitudeCleaned", latitude) AS latitude,
+          COALESCE("longitudeCleaned", longitude) AS longitude,
           speed,
           movement,
           timestamp,
-          LAG(latitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
-          LAG(longitude) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(COALESCE("latitudeCleaned", latitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(COALESCE("longitudeCleaned", longitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
           LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
         FROM gps_readings r
         WHERE "deviceId" = ANY($1)
@@ -612,10 +617,10 @@ export class ReportsService {
         ROUND(MAX(COALESCE(t.speed, 0))::numeric, 2)::float AS "maxSpeed",
         MIN(t.timestamp) AS "firstSeen",
         MAX(t.timestamp) AS "lastSeen",
-        (ARRAY_AGG(t.latitude ORDER BY t.timestamp ASC))[1]::float AS "startLat",
-        (ARRAY_AGG(t.longitude ORDER BY t.timestamp ASC))[1]::float AS "startLon",
-        (ARRAY_AGG(t.latitude ORDER BY t.timestamp DESC))[1]::float AS "endLat",
-        (ARRAY_AGG(t.longitude ORDER BY t.timestamp DESC))[1]::float AS "endLon"
+        (ARRAY_AGG(COALESCE(t.latitude, 0) ORDER BY t.timestamp ASC))[1]::float AS "startLat",
+        (ARRAY_AGG(COALESCE(t.longitude, 0) ORDER BY t.timestamp ASC))[1]::float AS "startLon",
+        (ARRAY_AGG(COALESCE(t.latitude, 0) ORDER BY t.timestamp DESC))[1]::float AS "endLat",
+        (ARRAY_AGG(COALESCE(t.longitude, 0) ORDER BY t.timestamp DESC))[1]::float AS "endLon"
       FROM trip_markers t
       GROUP BY t."deviceId"
       ORDER BY "totalDistanceKm" DESC

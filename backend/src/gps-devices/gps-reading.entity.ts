@@ -19,6 +19,18 @@ export class GPSReading {
   @Column({ type: 'decimal', precision: 10, scale: 7 })
   longitude: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  latitudeCleaned: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  longitudeCleaned: number | null;
+
+  @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
+  accuracy: number | null;
+
+  @Column({ type: 'boolean', default: false })
+  processed: boolean;
+
   @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
   speed: number | null;
 
