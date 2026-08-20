@@ -209,7 +209,7 @@ export function ReportMap({ data, columns }: ReportMapProps) {
               onCloseClick={() => setOpenInfoWindow(null)}
             >
               <div
-                className="text-sm"
+                style={{ fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}
                 dangerouslySetInnerHTML={{ __html: m.popupHtml }}
               />
             </InfoWindow>

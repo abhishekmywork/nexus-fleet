@@ -195,10 +195,10 @@ function VehicleMarker({ pos }: { pos: LivePosition }) {
       <div dangerouslySetInnerHTML={{ __html: createVehicleHtml(pos.plateNumber, pos.movement) }} />
       {open && (
         <InfoWindow onCloseClick={() => setOpen(false)} position={{ lat: pos.latitude, lng: pos.longitude }}>
-          <div className="min-w-[160px] space-y-0.5 text-sm">
-            <p className="font-semibold">{pos.plateNumber ?? "Unknown"}</p>
-            <p>Speed: {formatSpeed(pos.speed)}</p>
-            <p>Ignition: {pos.ignition ?? "N/A"}</p>
+          <div style={{ minWidth: 160, fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: "#111827" }}>{pos.plateNumber ?? "Unknown"}</div>
+            <div><span style={{ color: "#6b7280" }}>Speed: </span><span style={{ fontWeight: 600 }}>{formatSpeed(pos.speed)}</span></div>
+            <div><span style={{ color: "#6b7280" }}>Ignition: </span><span style={{ fontWeight: 600 }}>{pos.ignition ?? "N/A"}</span></div>
           </div>
         </InfoWindow>
       )}

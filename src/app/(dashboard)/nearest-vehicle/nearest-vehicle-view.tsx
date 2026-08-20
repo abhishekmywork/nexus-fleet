@@ -406,10 +406,10 @@ export default function NearestVehiclePage() {
                           }}
                           onCloseClick={() => setOpenInfoWindow(null)}
                         >
-                          <div className="text-sm">
-                            <p className="font-bold">{reference.plateNumber}</p>
+                          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
+                            <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: "#111827" }}>{reference.plateNumber}</p>
                             <p>{reference.make} {reference.model}</p>
-                            <p className="text-muted-foreground">Reference vehicle</p>
+                            <p style={{ color: "#6b7280" }}>Reference vehicle</p>
                           </div>
                         </InfoWindow>
                       )}
@@ -445,11 +445,11 @@ export default function NearestVehiclePage() {
                             }}
                             onCloseClick={() => setOpenInfoWindow(null)}
                           >
-                            <div className="text-sm">
-                              <p className="font-bold">{r.vehicle.plateNumber}</p>
+                            <div style={{ fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
+                              <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: "#111827" }}>{r.vehicle.plateNumber}</p>
                               <p>{r.vehicle.make} {r.vehicle.model}</p>
-                              <p>Distance: {r.distance_km} km</p>
-                              <p>Duration: {r.duration_min > 0 ? `${r.duration_min} min` : "—"}</p>
+                              <p>Distance: <span style={{ fontWeight: 600 }}>{r.distance_km} km</span></p>
+                              <p>Duration: <span style={{ fontWeight: 600 }}>{r.duration_min > 0 ? `${r.duration_min} min` : "—"}</span></p>
                             </div>
                           </InfoWindow>
                         )}

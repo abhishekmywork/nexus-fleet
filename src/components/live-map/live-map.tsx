@@ -589,17 +589,17 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
               }}
               onCloseClick={() => setSelectedMarkerDeviceId(null)}
             >
-              <div className="min-w-[180px] space-y-1 text-sm">
-                <p className="font-semibold">
+              <div style={{ minWidth: 180, fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: "#111827" }}>
                   {selectedPos.plateNumber ?? "Unknown"}
-                </p>
-                <p>Speed: {formatSpeed(selectedPos.speed)}</p>
-                <p>Ignition: {selectedPos.ignition ?? "N/A"}</p>
-                <p>Lat: {selectedPos.latitude.toFixed(6)}</p>
-                <p>Lng: {selectedPos.longitude.toFixed(6)}</p>
-                <p className="text-xs text-muted-foreground">
+                </div>
+                <div><span style={{ color: "#6b7280" }}>Speed: </span><span style={{ fontWeight: 600 }}>{formatSpeed(selectedPos.speed)}</span></div>
+                <div><span style={{ color: "#6b7280" }}>Ignition: </span><span style={{ fontWeight: 600 }}>{selectedPos.ignition ?? "N/A"}</span></div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Lat: {selectedPos.latitude.toFixed(6)}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>Lng: {selectedPos.longitude.toFixed(6)}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
                   {formatTimestamp(selectedPos.timestamp)}
-                </p>
+                </div>
               </div>
             </InfoWindow>
           )}
