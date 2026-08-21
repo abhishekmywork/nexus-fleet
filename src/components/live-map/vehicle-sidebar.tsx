@@ -150,7 +150,7 @@ export function VehicleSidebar({
                           <span
                             className={cn(
                               "inline-block size-1 rounded-full shrink-0",
-                              isMoving ? "bg-green-500" : isStopped ? "bg-yellow-500" : "bg-gray-400"
+                              isMoving ? "bg-green-500" : isStopped ? "bg-gray-400" : "bg-emerald-500"
                             )}
                           />
                           <span className="truncate text-xs font-semibold">
@@ -165,7 +165,7 @@ export function VehicleSidebar({
                           <span>·</span>
                           <span className={cn(
                             "font-medium",
-                            isMoving ? "text-green-600 dark:text-green-400" : isStopped ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground"
+                            isMoving ? "text-green-600 dark:text-green-400" : isStopped ? "text-gray-500 dark:text-gray-400" : "text-emerald-600 dark:text-emerald-400"
                           )}>
                             {effMove ?? "N/A"}
                           </span>

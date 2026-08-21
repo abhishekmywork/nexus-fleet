@@ -46,15 +46,15 @@ export function VehicleMarker({
   const color =
     effectiveMovement === "MOVING"
       ? "#22c55e"
-      : effectiveMovement === "STOPPED"
-        ? "#f97316"
+      : effectiveMovement === "IDLE"
+        ? "#10b981"
         : "#64748b";
 
   const glow =
     effectiveMovement === "MOVING"
       ? "rgba(34,197,94,0.5)"
-      : effectiveMovement === "STOPPED"
-        ? "rgba(249,115,22,0.4)"
+      : effectiveMovement === "IDLE"
+        ? "rgba(16,185,129,0.4)"
         : "rgba(100,116,139,0.3)";
 
   const handleClick = React.useCallback(() => {
