@@ -511,6 +511,11 @@ export interface TrailPoint {
   timestamp: string;
 }
 
+export interface TrailResponse {
+  points: TrailPoint[];
+  routeGeometry: { lat: number; lng: number }[] | null;
+}
+
 export interface SubscriptionPlan {
   id: string;
   name: string;

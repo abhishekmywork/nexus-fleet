@@ -520,7 +520,7 @@ export const api = {
     latestReadings: () =>
       request<import("./auth-types").GPSReading[]>("/telemetry/readings/latest"),
     trail: (deviceId: string) =>
-      request<import("./auth-types").TrailPoint[]>(`/telemetry/trail/${deviceId}`),
+      request<import("./auth-types").TrailResponse>(`/telemetry/trail/${deviceId}`),
   },
 
   events: {

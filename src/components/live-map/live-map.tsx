@@ -153,15 +153,15 @@ function formatSpeed(speed: number | null): string {
   return `${parseFloat(speed.toFixed(2))} km/h`;
 }
 
-function TrailLine({ points }: { points: TrailPoint[] }) {
+function TrailLine({ points, routeGeometry }: { points: TrailPoint[]; routeGeometry?: { lat: number; lng: number }[] | null }) {
   const map = useMap();
 
   React.useEffect(() => {
     if (!map || points.length < 2) return;
 
-    const latLngs = points.map(
-      (p) => new google.maps.LatLng(p.latitude, p.longitude)
-    );
+    const latLngs = routeGeometry && routeGeometry.length >= 2
+      ? routeGeometry.map((p) => new google.maps.LatLng(p.lat, p.lng))
+      : points.map((p) => new google.maps.LatLng(p.latitude, p.longitude));
 
     const glow = new google.maps.Polyline({
       path: latLngs,
@@ -383,6 +383,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     null
   );
   const [trail, setTrail] = useState<TrailPoint[]>([]);
+  const [trailRouteGeometry, setTrailRouteGeometry] = useState<{ lat: number; lng: number }[] | null>(null);
   const [trailLoading, setTrailLoading] = useState(false);
   const [selectedMarkerDeviceId, setSelectedMarkerDeviceId] = useState<
     string | null
@@ -413,6 +414,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
       if (selectedDeviceId === deviceId) {
         setSelectedDeviceId(null);
         setTrail([]);
+        setTrailRouteGeometry(null);
         return;
       }
       setSelectedDeviceId(deviceId);
@@ -420,9 +422,11 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
       setTrailLoading(true);
       try {
         const data = await api.telemetry.trail(deviceId);
-        setTrail(data);
+        setTrail(data.points);
+        setTrailRouteGeometry(data.routeGeometry);
       } catch {
         setTrail([]);
+        setTrailRouteGeometry(null);
       } finally {
         setTrailLoading(false);
       }
@@ -509,7 +513,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
             showGeofences={showGeofences}
           />
 
-          {trail.length >= 2 && <TrailLine points={trail} />}
+          {trail.length >= 2 && <TrailLine points={trail} routeGeometry={trailRouteGeometry} />}
 
           <GeofenceOverlays
             geofences={geofences}
