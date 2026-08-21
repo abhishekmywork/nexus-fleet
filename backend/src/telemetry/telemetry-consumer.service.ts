@@ -318,6 +318,8 @@ export class TelemetryConsumerService
             plateNumber: device.plateNumber,
             latitude: input.latitude ?? 0,
             longitude: input.longitude ?? 0,
+            latitudeCleaned: null,
+            longitudeCleaned: null,
             speed: input.speed ?? null,
             heading: null,
             ignition: input.ignition ?? null,

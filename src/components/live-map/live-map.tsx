@@ -5,11 +5,11 @@ import { useState, useRef, useCallback } from "react";
 import {
   Map,
   useMap,
-  AdvancedMarker,
-  InfoWindow,
 } from "@vis.gl/react-google-maps";
 import proj4 from "proj4";
 import { useLiveMap, LivePosition } from "@/hooks/use-live-map";
+import { useVehicleAnimation } from "@/hooks/use-vehicle-animation";
+import { VehicleMarker } from "@/components/vehicle-marker";
 import { VehicleSidebar } from "./vehicle-sidebar";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -148,30 +148,9 @@ function createCircleIconHtml(color: string, label: string): string {
   </div>`;
 }
 
-function createVehicleIconHtml(
-  plateNumber: string | null,
-  movement: string | null
-): string {
-  const color =
-    movement === "MOVING"
-      ? "#22c55e"
-      : movement === "STOPPED"
-        ? "#f97316"
-        : "#64748b";
-  const glow =
-    movement === "MOVING"
-      ? "rgba(34,197,94,0.5)"
-      : movement === "STOPPED"
-        ? "rgba(249,115,22,0.4)"
-        : "rgba(100,116,139,0.3)";
-  const plateHtml = plateNumber
-    ? `<span style="position:absolute;top:-20px;left:50%;transform:translateX(-50%);background:${color};color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;letter-spacing:0.4px;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.3);">${plateNumber}</span>`
-    : "";
-  return `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-    <div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 2px ${color}, 0 0 8px ${glow};"></div>
-    <div style="width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;box-shadow:0 0 4px ${glow};"></div>
-    ${plateHtml}
-  </div>`;
+function formatSpeed(speed: number | null): string {
+  if (speed == null) return "N/A";
+  return `${parseFloat(speed.toFixed(2))} km/h`;
 }
 
 function TrailLine({ points }: { points: TrailPoint[] }) {
@@ -291,11 +270,6 @@ function TrailLine({ points }: { points: TrailPoint[] }) {
   return null;
 }
 
-function formatSpeed(speed: number | null): string {
-  if (speed == null) return "N/A";
-  return `${parseFloat(speed.toFixed(2))} km/h`;
-}
-
 function GeofenceOverlays({
   geofences,
   showGeofences,
@@ -367,35 +341,6 @@ function GeofenceOverlays({
   }, [map, geofences, showGeofences]);
 
   return null;
-}
-
-function VehicleMarker({
-  pos,
-  onClick,
-}: {
-  pos: LivePosition;
-  onClick: () => void;
-}) {
-  return (
-    <AdvancedMarker
-      position={{ lat: pos.latitude, lng: pos.longitude }}
-      onClick={onClick}
-    >
-      <div
-        style={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          cursor: "pointer",
-        }}
-        title={pos.plateNumber ?? "Unknown"}
-        dangerouslySetInnerHTML={{
-          __html: createVehicleIconHtml(pos.plateNumber, pos.movement),
-        }}
-      />
-    </AdvancedMarker>
-  );
 }
 
 function formatTimestamp(ts: string): string {
@@ -507,6 +452,8 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     visibleVehicles.has(p.deviceId)
   );
 
+  const animatedPositions = useVehicleAnimation(positions);
+
   const selectedPos = selectedMarkerDeviceId
     ? visiblePositions.find((p) => p.deviceId === selectedMarkerDeviceId) ??
       allPositions.find((p) => p.deviceId === selectedMarkerDeviceId)
@@ -569,40 +516,27 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
             showGeofences={showGeofences}
           />
 
-          {visiblePositions.map((pos) => (
-            <VehicleMarker
-              key={pos.deviceId}
-              pos={pos}
-              onClick={() => {
-                setSelectedMarkerDeviceId((prev) =>
-                  prev === pos.deviceId ? null : pos.deviceId
-                );
-              }}
-            />
-          ))}
-
-          {selectedPos && (
-            <InfoWindow
-              position={{
-                lat: selectedPos.latitude,
-                lng: selectedPos.longitude,
-              }}
-              onCloseClick={() => setSelectedMarkerDeviceId(null)}
-            >
-              <div style={{ minWidth: 180, fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: "#111827" }}>
-                  {selectedPos.plateNumber ?? "Unknown"}
-                </div>
-                <div><span style={{ color: "#6b7280" }}>Speed: </span><span style={{ fontWeight: 600 }}>{formatSpeed(selectedPos.speed)}</span></div>
-                <div><span style={{ color: "#6b7280" }}>Ignition: </span><span style={{ fontWeight: 600 }}>{selectedPos.ignition ?? "N/A"}</span></div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Lat: {selectedPos.latitude.toFixed(6)}</div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>Lng: {selectedPos.longitude.toFixed(6)}</div>
-                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
-                  {formatTimestamp(selectedPos.timestamp)}
-                </div>
-              </div>
-            </InfoWindow>
-          )}
+          {visiblePositions.map((pos) => {
+            const anim = animatedPositions.get(pos.deviceId);
+            return (
+              <VehicleMarker
+                key={pos.deviceId}
+                lat={anim?.lat ?? pos.latitude}
+                lng={anim?.lng ?? pos.longitude}
+                heading={anim?.heading ?? 0}
+                speed={pos.speed}
+                movement={pos.movement}
+                plateNumber={pos.plateNumber}
+                timestamp={pos.timestamp}
+                isSelected={selectedMarkerDeviceId === pos.deviceId}
+                onClick={() => {
+                  setSelectedMarkerDeviceId((prev) =>
+                    prev === pos.deviceId ? null : pos.deviceId
+                  );
+                }}
+              />
+            );
+          })}
         </Map>
 
         {!sidebarOpen && (

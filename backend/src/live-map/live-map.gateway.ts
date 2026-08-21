@@ -18,6 +18,8 @@ export interface PositionPayload {
   plateNumber: string | null;
   latitude: number;
   longitude: number;
+  latitudeCleaned: number | null;
+  longitudeCleaned: number | null;
   speed: number | null;
   heading: number | null;
   ignition: string | null;

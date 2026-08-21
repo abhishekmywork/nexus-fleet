@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Map, useMap, AdvancedMarker, InfoWindow } from "@vis.gl/react-google-maps";
+import { Map as GoogleMap, useMap } from "@vis.gl/react-google-maps";
 import { MapPin, Map as MapIcon, Satellite, Mountain, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VehicleMarker } from "@/components/vehicle-marker";
+import { useVehicleAnimation } from "@/hooks/use-vehicle-animation";
 import type { LivePosition } from "@/hooks/use-live-map";
 import type { Geofence } from "@/lib/auth-types";
 
@@ -154,58 +156,6 @@ function GeofenceManager({
   return null;
 }
 
-function createVehicleHtml(plateNumber: string | null, movement: string | null): string {
-  const color =
-    movement === "MOVING" ? "#22c55e" :
-    movement === "STOPPED" ? "#f97316" : "#64748b";
-
-  return `
-    <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
-      <div style="
-        width:12px;height:12px;border-radius:50%;
-        background:${color};border:2px solid #fff;
-        box-shadow:0 0 0 2px ${color}, 0 0 8px ${color}40;
-      "></div>
-      <div style="
-        width:2px;height:4px;background:${color};border-radius:0 0 1px 1px;
-      "></div>
-      ${plateNumber ? `<span style="
-        position:absolute;top:-20px;left:50%;transform:translateX(-50%);
-        background:${color};color:#fff;font-size:8px;font-weight:700;
-        padding:1px 5px;border-radius:3px;white-space:nowrap;
-        box-shadow:0 1px 4px rgba(0,0,0,.3);
-      ">${plateNumber}</span>` : ""}
-    </div>
-  `;
-}
-
-function formatSpeed(speed: number | null): string {
-  if (speed == null) return "N/A";
-  return `${parseFloat(speed.toFixed(2))} km/h`;
-}
-
-function VehicleMarker({ pos }: { pos: LivePosition }) {
-  const [open, setOpen] = React.useState(false);
-
-  return (
-    <AdvancedMarker
-      position={{ lat: pos.latitude, lng: pos.longitude }}
-      onClick={() => setOpen(true)}
-    >
-      <div dangerouslySetInnerHTML={{ __html: createVehicleHtml(pos.plateNumber, pos.movement) }} />
-      {open && (
-        <InfoWindow onCloseClick={() => setOpen(false)} position={{ lat: pos.latitude, lng: pos.longitude }}>
-          <div style={{ minWidth: 160, fontSize: 13, lineHeight: 1.6, color: "#1f2937", fontFamily: "system-ui, sans-serif" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, color: "#111827" }}>{pos.plateNumber ?? "Unknown"}</div>
-            <div><span style={{ color: "#6b7280" }}>Speed: </span><span style={{ fontWeight: 600 }}>{formatSpeed(pos.speed)}</span></div>
-            <div><span style={{ color: "#6b7280" }}>Ignition: </span><span style={{ fontWeight: 600 }}>{pos.ignition ?? "N/A"}</span></div>
-          </div>
-        </InfoWindow>
-      )}
-    </AdvancedMarker>
-  );
-}
-
 export function PublicMapInner({
   positions,
   geofences,
@@ -218,6 +168,14 @@ export function PublicMapInner({
   const [mapMode, setMapMode] = React.useState<MapMode>("standard");
   const [modeMenuOpen, setModeMenuOpen] = React.useState(false);
 
+  const positionsMap = React.useMemo(() => {
+    const m = new Map<string, LivePosition>();
+    for (const p of positions) m.set(p.deviceId, p);
+    return m;
+  }, [positions]);
+
+  const animatedPositions = useVehicleAnimation(positionsMap);
+
   React.useEffect(() => {
     if (!modeMenuOpen) return;
     const handler = () => setModeMenuOpen(false);
@@ -227,7 +185,7 @@ export function PublicMapInner({
 
   return (
     <div className="relative h-full w-full">
-      <Map
+      <GoogleMap
         defaultCenter={DEFAULT_CENTER}
         defaultZoom={12}
         mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID}
@@ -239,10 +197,24 @@ export function PublicMapInner({
         <FitBounds positions={positions} geofences={geofences} />
         <GeofenceManager geofences={geofences} />
 
-        {positions.map((pos) => (
-          <VehicleMarker key={pos.deviceId} pos={pos} />
-        ))}
-      </Map>
+        {positions.map((pos) => {
+          const anim = animatedPositions.get(pos.deviceId);
+          return (
+            <VehicleMarker
+              key={pos.deviceId}
+              lat={anim?.lat ?? pos.latitude}
+              lng={anim?.lng ?? pos.longitude}
+              heading={anim?.heading ?? 0}
+              speed={pos.speed}
+              movement={pos.movement}
+              plateNumber={pos.plateNumber}
+              timestamp={pos.timestamp}
+              isSelected={false}
+              onClick={() => {}}
+            />
+          );
+        })}
+      </GoogleMap>
 
       {/* Tenant label */}
       <div className="absolute top-4 left-4 z-[1000] rounded-lg border bg-background/90 px-3 py-2 shadow-sm backdrop-blur">
