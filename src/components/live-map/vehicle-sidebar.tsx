@@ -62,8 +62,10 @@ export function VehicleSidebar({
 }: VehicleSidebarProps) {
   const [query, setQuery] = React.useState("");
   const { logout, can } = useAuth();
+  const effectiveMovement = (p: { movement: string | null; speed: number | null }) =>
+    (p.speed != null && p.speed > 0) ? p.movement : (p.movement === "MOVING" ? "IDLE" : p.movement);
   const movingCount = React.useMemo(
-    () => positions.filter((p) => p.movement === "MOVING").length,
+    () => positions.filter((p) => effectiveMovement(p) === "MOVING").length,
     [positions]
   );
   const filtered = React.useMemo(() => {
@@ -73,7 +75,7 @@ export function VehicleSidebar({
       (p) =>
         (p.plateNumber && p.plateNumber.toLowerCase().includes(q)) ||
         p.deviceId.toLowerCase().includes(q) ||
-        (p.movement && p.movement.toLowerCase().includes(q)) ||
+        (effectiveMovement(p) && effectiveMovement(p)!.toLowerCase().includes(q)) ||
         (p.ignition && `ignition ${p.ignition}`.toLowerCase().includes(q))
     );
   }, [positions, query]);
@@ -114,8 +116,9 @@ export function VehicleSidebar({
                 </p>
               ) : (
                 filtered.map((pos) => {
-                  const isMoving = pos.movement === "MOVING";
-                  const isStopped = pos.movement === "STOPPED";
+                  const effMove = effectiveMovement(pos);
+                  const isMoving = effMove === "MOVING";
+                  const isStopped = effMove === "STOPPED";
                   const isSelected = selectedDeviceId === pos.deviceId;
                   const ago = timeAgo(pos.timestamp);
                   return (
@@ -162,7 +165,7 @@ export function VehicleSidebar({
                             "font-medium",
                             isMoving ? "text-green-600 dark:text-green-400" : isStopped ? "text-yellow-600 dark:text-yellow-400" : "text-muted-foreground"
                           )}>
-                            {pos.movement ?? "N/A"}
+                            {effMove ?? "N/A"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">

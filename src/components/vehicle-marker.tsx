@@ -37,17 +37,21 @@ export function VehicleMarker({
 }: VehicleMarkerProps) {
   const [showInfo, setShowInfo] = React.useState(false);
 
+  // Override: if speed is 0 or null, vehicle is not moving regardless of device's movement field
+  const effectiveMovement =
+    (speed != null && speed > 0) ? movement : (movement === "MOVING" ? "IDLE" : movement);
+
   const color =
-    movement === "MOVING"
+    effectiveMovement === "MOVING"
       ? "#22c55e"
-      : movement === "STOPPED"
+      : effectiveMovement === "STOPPED"
         ? "#f97316"
         : "#64748b";
 
   const glow =
-    movement === "MOVING"
+    effectiveMovement === "MOVING"
       ? "rgba(34,197,94,0.5)"
-      : movement === "STOPPED"
+      : effectiveMovement === "STOPPED"
         ? "rgba(249,115,22,0.4)"
         : "rgba(100,116,139,0.3)";
 
@@ -146,7 +150,7 @@ export function VehicleMarker({
             </div>
             <div>
               <span style={{ color: "#6b7280" }}>Status: </span>
-              <span style={{ fontWeight: 600, color }}>{movement ?? "N/A"}</span>
+              <span style={{ fontWeight: 600, color }}>{effectiveMovement ?? "N/A"}</span>
             </div>
             <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
               {formatTimestamp(timestamp)}
