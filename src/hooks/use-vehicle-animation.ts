@@ -104,7 +104,17 @@ export function useVehicleAnimation(positions: Map<string, LivePosition>) {
         );
         existing.targetLat = lat;
         existing.targetLng = lng;
-        existing.targetHeading = hdg;
+        // Use device heading if available, otherwise compute from position delta
+        if (pos.heading != null && pos.heading !== 0) {
+          existing.targetHeading = hdg;
+        } else {
+          const dist = Math.hypot(lat - existing.prevLat, lng - existing.prevLng);
+          if (dist > 0.00001) {
+            existing.targetHeading = calcBearing(
+              existing.prevLat, existing.prevLng, lat, lng
+            );
+          }
+        }
         existing.speed = pos.speed;
         existing.movement = pos.movement;
         existing.plateNumber = pos.plateNumber;

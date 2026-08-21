@@ -168,6 +168,7 @@ export class TelemetryConsumerService
       latitude?: number;
       longitude?: number;
       speed?: number;
+      heading?: number | null;
       ignition?: string;
       movement?: string;
       batteryV?: number;
@@ -262,6 +263,7 @@ export class TelemetryConsumerService
           latitude: data.latitude,
           longitude: data.longitude,
           speed: data.speed_kph,
+          heading: data.course ?? null,
           ignition: data.ignition,
           movement: data.movement,
           batteryV: data.battery_v,
@@ -321,7 +323,7 @@ export class TelemetryConsumerService
             latitudeCleaned: null,
             longitudeCleaned: null,
             speed: input.speed ?? null,
-            heading: null,
+            heading: input.heading ?? null,
             ignition: input.ignition ?? null,
             movement: input.movement ?? null,
             timestamp: input.timestamp ?? new Date().toISOString(),
