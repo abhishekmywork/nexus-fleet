@@ -20,6 +20,8 @@ import {
   Satellite,
   Mountain,
   Layers,
+  X,
+  Route,
 } from "lucide-react";
 
 type MapMode = "standard" | "satellite" | "terrain" | "hybrid";
@@ -221,53 +223,113 @@ function TrailLine({ points, routeGeometry }: { points: TrailPoint[]; routeGeome
       map,
     });
 
-    const distance = calcDistance(points);
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const hours = Math.floor(durationMs / 3600000);
-    const minutes = Math.floor((durationMs % 3600000) / 60000);
-    const avgSpeed = hours > 0 ? distance / (durationMs / 3600000) : 0;
-
-    const statsHtml = `<div style="font-size:12px;line-height:1.5;min-width:140px">
-      <div style="font-weight:700;margin-bottom:4px">Today's Trail</div>
-      <div>${points[0].timestamp.split("T")[0]}</div>
-      <div><b>${distance.toFixed(2)}</b> km total</div>
-      <div><b>${hours}h ${minutes}m</b> duration</div>
-      <div><b>${avgSpeed.toFixed(1)}</b> km/h avg</div>
-      <div style="margin-top:4px;font-size:10px;color:#6b7280">${points.length} GPS points</div>
-    </div>`;
-
-    const infoWindow = new google.maps.InfoWindow({ content: statsHtml });
-    const clickHandler = mainLine.addListener(
-      "click",
-      (e: google.maps.PolyMouseEvent) => {
-        infoWindow.setPosition(e.latLng);
-        infoWindow.open({ map });
-      }
-    );
-    const glowHandler = glow.addListener(
-      "click",
-      (e: google.maps.PolyMouseEvent) => {
-        infoWindow.setPosition(e.latLng);
-        infoWindow.open({ map });
-      }
-    );
-
     const bounds = new google.maps.LatLngBounds();
     for (const ll of latLngs) bounds.extend(ll);
     map.fitBounds(bounds, 50);
 
     return () => {
-      google.maps.event.removeListener(clickHandler);
-      google.maps.event.removeListener(glowHandler);
-      infoWindow.close();
       glow.setMap(null);
       mainLine.setMap(null);
       startMarker.map = null;
       endMarker.map = null;
     };
-  }, [points, map]);
+  }, [points, routeGeometry, map]);
 
   return null;
+}
+
+function TrailInfoBox({
+  points,
+  plateNumber,
+  onClose,
+}: {
+  points: TrailPoint[];
+  plateNumber?: string | null;
+  onClose: () => void;
+}) {
+  if (points.length < 2) return null;
+
+  const startTime = new Date(points[0].timestamp);
+  const endTime = new Date(points[points.length - 1].timestamp);
+  const distance = calcDistance(points);
+  const durationMs = endTime.getTime() - startTime.getTime();
+  const hours = Math.floor(durationMs / 3600000);
+  const minutes = Math.floor((durationMs % 3600000) / 60000);
+  const avgSpeed = hours > 0 ? distance / (durationMs / 3600000) : 0;
+
+  return (
+    <div className="absolute bottom-6 right-4 z-[1000] w-56 rounded-xl border border-white/20 bg-black/50 p-3 text-white shadow-2xl backdrop-blur-md">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Route className="size-3.5 text-orange-400" />
+          <span className="text-xs font-bold tracking-wide">Trail Summary</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded-md p-0.5 text-white/60 hover:bg-white/10 hover:text-white"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+
+      {plateNumber && (
+        <div className="mb-1.5 rounded-md bg-white/10 px-2 py-1 text-center text-xs font-bold">
+          {plateNumber}
+        </div>
+      )}
+
+      <div className="space-y-1 text-[11px]">
+        <div className="flex justify-between">
+          <span className="text-white/60">Date</span>
+          <span className="font-medium">
+            {startTime.toLocaleDateString([], {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/60">Distance</span>
+          <span className="font-semibold text-orange-300">
+            {distance.toFixed(2)} km
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/60">Duration</span>
+          <span className="font-medium">
+            {hours}h {minutes}m
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/60">Avg Speed</span>
+          <span className="font-medium">{avgSpeed.toFixed(1)} km/h</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/60">Start</span>
+          <span className="font-medium">
+            {startTime.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-white/60">End</span>
+          <span className="font-medium">
+            {endTime.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+        <div className="flex justify-between border-t border-white/10 pt-1">
+          <span className="text-white/40">GPS points</span>
+          <span className="text-white/40">{points.length}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GeofenceOverlays({
@@ -542,6 +604,18 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
             );
           })}
         </Map>
+
+        {trail.length >= 2 && selectedDeviceId && (
+          <TrailInfoBox
+            points={trail}
+            plateNumber={allPositions.find((p) => p.deviceId === selectedDeviceId)?.plateNumber}
+            onClose={() => {
+              setSelectedDeviceId(null);
+              setTrail([]);
+              setTrailRouteGeometry(null);
+            }}
+          />
+        )}
 
         {!sidebarOpen && (
           <button
