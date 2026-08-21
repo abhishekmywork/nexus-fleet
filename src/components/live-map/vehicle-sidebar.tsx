@@ -62,8 +62,10 @@ export function VehicleSidebar({
 }: VehicleSidebarProps) {
   const [query, setQuery] = React.useState("");
   const { logout, can } = useAuth();
-  const effectiveMovement = (p: { movement: string | null; speed: number | null }) =>
-    (p.speed != null && p.speed > 0) ? p.movement : (p.movement === "MOVING" ? "IDLE" : p.movement);
+  const effectiveMovement = (p: { movement: string | null; speed: number | null }) => {
+    const numSpeed = p.speed != null ? Number(p.speed) : null;
+    return (numSpeed != null && numSpeed > 0) ? p.movement : (p.movement === "MOVING" ? "IDLE" : p.movement);
+  };
   const movingCount = React.useMemo(
     () => positions.filter((p) => effectiveMovement(p) === "MOVING").length,
     [positions]

@@ -38,8 +38,10 @@ export function VehicleMarker({
   const [showInfo, setShowInfo] = React.useState(false);
 
   // Override: if speed is 0 or null, vehicle is not moving regardless of device's movement field
+  // Coerce speed to number to handle string values from GPS protocols
+  const numSpeed = speed != null ? Number(speed) : null;
   const effectiveMovement =
-    (speed != null && speed > 0) ? movement : (movement === "MOVING" ? "IDLE" : movement);
+    (numSpeed != null && numSpeed > 0) ? movement : (movement === "MOVING" ? "IDLE" : movement);
 
   const color =
     effectiveMovement === "MOVING"
