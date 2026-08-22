@@ -82,22 +82,28 @@ export function VehicleMarker({
         title={plateNumber ?? "Unknown"}
       >
         <svg
-          width="28"
-          height="28"
-          viewBox="0 0 28 28"
+          width="32"
+          height="32"
+          viewBox="0 0 32 32"
           style={{
             transform: `rotate(${heading}deg)`,
             filter: `drop-shadow(0 0 6px ${glow})`,
             transition: "filter 0.3s",
           }}
         >
-          <polygon
-            points="14,2 22,24 14,18 6,24"
-            fill={color}
-            stroke="#fff"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
+          {/* wheels */}
+          <rect x="6" y="4" width="3" height="4" rx="1" fill="#1f2937" />
+          <rect x="23" y="4" width="3" height="4" rx="1" fill="#1f2937" />
+          <rect x="6" y="24" width="3" height="4" rx="1" fill="#1f2937" />
+          <rect x="23" y="24" width="3" height="4" rx="1" fill="#1f2937" />
+          {/* body */}
+          <rect x="8" y="3" width="16" height="26" rx="6" fill={color} stroke="#fff" strokeWidth="1.2" />
+          {/* windshield */}
+          <rect x="10.5" y="6" width="11" height="8" rx="3" fill="rgba(255,255,255,0.3)" />
+          {/* rear window */}
+          <rect x="10.5" y="19" width="11" height="6" rx="2.5" fill="rgba(255,255,255,0.2)" />
+          {/* direction indicator (front dot) */}
+          <circle cx="16" cy="4" r="1.5" fill="#fff" opacity="0.8" />
         </svg>
         {plateNumber && (
           <span
