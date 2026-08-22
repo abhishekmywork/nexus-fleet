@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
+import { GlobalSettingsService } from '../settings/global-settings.service';
 
 export interface TelemetryQueryDto {
   page?: number;
@@ -20,6 +21,7 @@ export class TelemetryService {
     private readonly readings: Repository<GPSReading>,
     @InjectRepository(GPSDevice)
     private readonly devices: Repository<GPSDevice>,
+    private readonly globalSettings: GlobalSettingsService,
   ) {}
 
   async findAll(query: TelemetryQueryDto) {
@@ -61,7 +63,14 @@ export class TelemetryService {
     };
   }
 
+  private pickCoord(raw: any, cleaned: any, useCorrected: boolean): number {
+    if (useCorrected && cleaned != null) return Number(cleaned);
+    return Number(raw);
+  }
+
   async findLatestPerDevice() {
+    const useCorrected = await this.globalSettings.isCorrectedCoordsEnabled();
+
     const latestPerDevice = await this.readings
       .createQueryBuilder('r')
       .innerJoin(
@@ -84,8 +93,8 @@ export class TelemetryService {
 
     return latestPerDevice.map((r) => ({
       ...r,
-      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
-      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
+      latitude: this.pickCoord(r.latitude, r.latitudeCleaned, useCorrected),
+      longitude: this.pickCoord(r.longitude, r.longitudeCleaned, useCorrected),
     }));
   }
 
@@ -93,6 +102,7 @@ export class TelemetryService {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const OSRM_URL = process.env.OSRM_URL || 'http://osrm:5000';
+    const useCorrected = await this.globalSettings.isCorrectedCoordsEnabled();
 
     const readings = await this.readings
       .createQueryBuilder('r')
@@ -114,8 +124,8 @@ export class TelemetryService {
       .getMany();
 
     const points = readings.map((r) => ({
-      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
-      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
+      latitude: this.pickCoord(r.latitude, r.latitudeCleaned, useCorrected),
+      longitude: this.pickCoord(r.longitude, r.longitudeCleaned, useCorrected),
       speed: r.speed != null ? Number(r.speed) : null,
       heading: r.heading,
       ignition: r.ignition,

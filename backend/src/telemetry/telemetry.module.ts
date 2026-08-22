@@ -4,6 +4,7 @@ import { GPSReading } from '../gps-devices/gps-reading.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { EventModule } from '../events/event.module';
 import { LiveMapModule } from '../live-map/live-map.module';
+import { SettingsModule } from '../settings/settings.module';
 import { TelemetryConsumerService } from './telemetry-consumer.service';
 import { TelemetryService } from './telemetry.service';
 import { TelemetryController } from './telemetry.controller';
@@ -14,6 +15,7 @@ import { GpsCleanerService } from './gps-cleaner.service';
     TypeOrmModule.forFeature([GPSReading, GPSDevice]),
     EventModule,
     LiveMapModule,
+    SettingsModule,
   ],
   controllers: [TelemetryController],
   providers: [TelemetryConsumerService, TelemetryService, GpsCleanerService],

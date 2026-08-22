@@ -7,6 +7,7 @@ import { Vehicle } from '../vehicles/vehicle.entity';
 import { Event } from '../events/event.entity';
 import { Geofence } from '../geofences/geofence.entity';
 import { Driver } from '../drivers/driver.entity';
+import { GlobalSettingsService } from '../settings/global-settings.service';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 export interface ReportQuery {
@@ -38,11 +39,29 @@ export class ReportsService {
     private readonly geofences: Repository<Geofence>,
     @InjectRepository(Driver)
     private readonly drivers: Repository<Driver>,
+    private readonly globalSettings: GlobalSettingsService,
   ) {}
 
   private tenantFilter(user: AuthenticatedUser) {
     if (user.isSuperUser || !user.tenantId) return '';
     return `AND d."tenantId" = '${user.tenantId}'`;
+  }
+
+  private async getCoordMode() {
+    return this.globalSettings.isCorrectedCoordsEnabled();
+  }
+
+  private latExpr(useCorrected: boolean, alias = 'r') {
+    return useCorrected ? `COALESCE(${alias}."latitudeCleaned", ${alias}.latitude)` : `${alias}.latitude`;
+  }
+
+  private lonExpr(useCorrected: boolean, alias = 'r') {
+    return useCorrected ? `COALESCE(${alias}."longitudeCleaned", ${alias}.longitude)` : `${alias}.longitude`;
+  }
+
+  private pickCoord(raw: any, cleaned: any, useCorrected: boolean): number {
+    if (useCorrected && cleaned != null) return Number(cleaned);
+    return Number(raw);
   }
 
   private async getDevicesForUser(user: AuthenticatedUser) {
@@ -60,6 +79,8 @@ export class ReportsService {
     const devices = await this.getDevicesForUser(user);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
+
+    const useCorrected = await this.getCoordMode();
 
     const qb = this.readings
       .createQueryBuilder('r')
@@ -105,10 +126,10 @@ export class ReportsService {
 
           let dist = 0;
           for (let j = 1; j < seg.length; j++) {
-            const prevLat = seg[j - 1].latitudeCleaned != null ? Number(seg[j - 1].latitudeCleaned) : Number(seg[j - 1].latitude);
-            const prevLon = seg[j - 1].longitudeCleaned != null ? Number(seg[j - 1].longitudeCleaned) : Number(seg[j - 1].longitude);
-            const curLat = seg[j].latitudeCleaned != null ? Number(seg[j].latitudeCleaned) : Number(seg[j].latitude);
-            const curLon = seg[j].longitudeCleaned != null ? Number(seg[j].longitudeCleaned) : Number(seg[j].longitude);
+            const prevLat = this.pickCoord(seg[j - 1].latitude, seg[j - 1].latitudeCleaned, useCorrected);
+            const prevLon = this.pickCoord(seg[j - 1].longitude, seg[j - 1].longitudeCleaned, useCorrected);
+            const curLat = this.pickCoord(seg[j].latitude, seg[j].latitudeCleaned, useCorrected);
+            const curLon = this.pickCoord(seg[j].longitude, seg[j].longitudeCleaned, useCorrected);
             dist += this.haversine(prevLat, prevLon, curLat, curLon);
           }
           const start = seg[0];
@@ -128,13 +149,13 @@ export class ReportsService {
             distanceKm: Math.round(dist * 100) / 100,
             avgSpeed: Math.round(avgSpd * 100) / 100,
             maxSpeed: Math.round(maxSpd * 100) / 100,
-            startLat: start.latitudeCleaned != null ? Number(start.latitudeCleaned) : Number(start.latitude),
-            startLon: start.longitudeCleaned != null ? Number(start.longitudeCleaned) : Number(start.longitude),
-            endLat: end.latitudeCleaned != null ? Number(end.latitudeCleaned) : Number(end.latitude),
-            endLon: end.longitudeCleaned != null ? Number(end.longitudeCleaned) : Number(end.longitude),
+            startLat: this.pickCoord(start.latitude, start.latitudeCleaned, useCorrected),
+            startLon: this.pickCoord(start.longitude, start.longitudeCleaned, useCorrected),
+            endLat: this.pickCoord(end.latitude, end.latitudeCleaned, useCorrected),
+            endLon: this.pickCoord(end.longitude, end.longitudeCleaned, useCorrected),
             points: seg.map((s) => ({
-              lat: s.latitudeCleaned != null ? Number(s.latitudeCleaned) : Number(s.latitude),
-              lon: s.longitudeCleaned != null ? Number(s.longitudeCleaned) : Number(s.longitude),
+              lat: this.pickCoord(s.latitude, s.latitudeCleaned, useCorrected),
+              lon: this.pickCoord(s.longitude, s.longitudeCleaned, useCorrected),
               ts: s.timestamp,
             })),
           });
@@ -152,17 +173,21 @@ export class ReportsService {
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
+    const useCorrected = await this.getCoordMode();
+    const latE = this.latExpr(useCorrected);
+    const lonE = this.lonExpr(useCorrected);
+
     const result = await this.readings.query(`
       WITH ordered AS (
         SELECT
           "deviceId",
-          COALESCE("latitudeCleaned", latitude) AS latitude,
-          COALESCE("longitudeCleaned", longitude) AS longitude,
+          ${latE} AS latitude,
+          ${lonE} AS longitude,
           speed,
           movement,
           timestamp,
-          LAG(COALESCE("latitudeCleaned", latitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
-          LAG(COALESCE("longitudeCleaned", longitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(${latE}) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(${lonE}) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
           LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
         FROM gps_readings
         WHERE "deviceId" = ANY($1)
@@ -228,6 +253,7 @@ export class ReportsService {
     if (deviceIds.length === 0) return [];
 
     const speedLimit = q.speedLimit ?? 120;
+    const useCorrected = await this.getCoordMode();
 
     const readings = await this.readings
       .createQueryBuilder('r')
@@ -246,8 +272,8 @@ export class ReportsService {
       timestamp: r.timestamp,
       speed: Number(r.speed),
       speedLimit,
-      latitude: r.latitudeCleaned != null ? Number(r.latitudeCleaned) : Number(r.latitude),
-      longitude: r.longitudeCleaned != null ? Number(r.longitudeCleaned) : Number(r.longitude),
+      latitude: this.pickCoord(r.latitude, r.latitudeCleaned, useCorrected),
+      longitude: this.pickCoord(r.longitude, r.longitudeCleaned, useCorrected),
     }));
   }
 
@@ -434,18 +460,21 @@ export class ReportsService {
   // 9. Driver Activity — single SQL query (no N+1)
   async driverActivityReport(user: AuthenticatedUser, q: ReportQuery) {
     const driverFilter = q.driverId ? `AND dr.id = '${q.driverId}'` : '';
+    const useCorrected = await this.getCoordMode();
+    const latE = this.latExpr(useCorrected, 'r');
+    const lonE = this.lonExpr(useCorrected, 'r');
 
     const result = await this.readings.query(`
       WITH readings_with_gap AS (
         SELECT
           r."deviceId",
           r.speed,
-          COALESCE(r."latitudeCleaned", r.latitude) AS latitude,
-          COALESCE(r."longitudeCleaned", r.longitude) AS longitude,
+          ${latE} AS latitude,
+          ${lonE} AS longitude,
           r.timestamp,
           LAG(r.timestamp) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_ts,
-          LAG(COALESCE(r."latitudeCleaned", r.latitude)) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lat,
-          LAG(COALESCE(r."longitudeCleaned", r.longitude)) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lon
+          LAG(${latE}) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lat,
+          LAG(${lonE}) OVER (PARTITION BY r."deviceId" ORDER BY r.timestamp) AS prev_lon
         FROM gps_readings r
         JOIN gps_devices g ON g.id = r."deviceId"
         JOIN vehicles v ON v.id = g."vehicleId"
@@ -564,18 +593,21 @@ export class ReportsService {
     if (deviceIds.length === 0) return [];
 
     const deviceIdFilter = q.deviceId ? `AND r."deviceId" = '${q.deviceId}'` : '';
+    const useCorrected = await this.getCoordMode();
+    const latE = this.latExpr(useCorrected);
+    const lonE = this.lonExpr(useCorrected);
 
     const result = await this.readings.query(`
       WITH ordered AS (
         SELECT
           "deviceId",
-          COALESCE("latitudeCleaned", latitude) AS latitude,
-          COALESCE("longitudeCleaned", longitude) AS longitude,
+          ${latE} AS latitude,
+          ${lonE} AS longitude,
           speed,
           movement,
           timestamp,
-          LAG(COALESCE("latitudeCleaned", latitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
-          LAG(COALESCE("longitudeCleaned", longitude)) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
+          LAG(${latE}) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lat,
+          LAG(${lonE}) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_lon,
           LAG(timestamp) OVER (PARTITION BY "deviceId" ORDER BY timestamp) AS prev_ts
         FROM gps_readings r
         WHERE "deviceId" = ANY($1)

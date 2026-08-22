@@ -6,12 +6,14 @@ import { Vehicle } from '../vehicles/vehicle.entity';
 import { Event } from '../events/event.entity';
 import { Geofence } from '../geofences/geofence.entity';
 import { Driver } from '../drivers/driver.entity';
+import { SettingsModule } from '../settings/settings.module';
 import { ReportsService } from './reports.service';
 import { ReportsController } from './reports.controller';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([GPSReading, GPSDevice, Vehicle, Event, Geofence, Driver]),
+    SettingsModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],

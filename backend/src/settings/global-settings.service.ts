@@ -26,6 +26,7 @@ export const DEFAULT_GLOBAL_SETTINGS = [
   { key: 'sms.apiKey', value: '', category: 'sms', description: 'SMS gateway API key (encrypted)' },
   { key: 'sms.senderId', value: '', category: 'sms', description: 'SMS sender ID' },
   { key: 'sms.type', value: 'transactional', category: 'sms', description: 'SMS type (transactional/promotional)' },
+  { key: 'gps.coordinateMode', value: 'corrected', category: 'gps', description: 'GPS coordinate mode (corrected = cleaned/snapped to roads, raw = original GPS data)' },
 ];
 
 @Injectable()
@@ -126,5 +127,10 @@ export class GlobalSettingsService {
       phone: phone ?? '',
       email: email ?? '',
     };
+  }
+
+  async isCorrectedCoordsEnabled(): Promise<boolean> {
+    const mode = await this.getValue('gps.coordinateMode');
+    return mode !== 'raw';
   }
 }
