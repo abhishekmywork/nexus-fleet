@@ -26,12 +26,18 @@ import {
 
 type MapMode = "standard" | "satellite" | "terrain" | "hybrid";
 
-const MAP_MODE_TYPES: Record<MapMode, google.maps.MapTypeId> = {
-  standard: google.maps.MapTypeId.ROADMAP,
-  satellite: google.maps.MapTypeId.SATELLITE,
-  terrain: google.maps.MapTypeId.TERRAIN,
-  hybrid: google.maps.MapTypeId.HYBRID,
-};
+let MAP_MODE_TYPES: Record<MapMode, google.maps.MapTypeId> | null = null;
+function getMapModeTypes(): Record<MapMode, google.maps.MapTypeId> {
+  if (!MAP_MODE_TYPES) {
+    MAP_MODE_TYPES = {
+      standard: google.maps.MapTypeId.ROADMAP,
+      satellite: google.maps.MapTypeId.SATELLITE,
+      terrain: google.maps.MapTypeId.TERRAIN,
+      hybrid: google.maps.MapTypeId.HYBRID,
+    };
+  }
+  return MAP_MODE_TYPES;
+}
 
 const MAP_MODE_ICONS: Record<MapMode, React.ReactNode> = {
   standard: <MapIcon className="size-3.5" />,
@@ -63,7 +69,7 @@ const DEFAULT_CENTER = { lat: 28.6139, lng: 77.209 };
 function MapTypeController({ mapMode }: { mapMode: MapMode }) {
   const map = useMap();
   React.useEffect(() => {
-    if (map) map.setMapTypeId(MAP_MODE_TYPES[mapMode]);
+    if (map) map.setMapTypeId(getMapModeTypes()[mapMode]);
   }, [mapMode, map]);
   return null;
 }
@@ -659,7 +665,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
             </button>
             {modeMenuOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-32 rounded-lg border bg-background p-1 shadow-lg">
-                {(Object.keys(MAP_MODE_TYPES) as MapMode[]).map((mode) => (
+                {(Object.keys(getMapModeTypes()) as MapMode[]).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => {
