@@ -11,32 +11,12 @@ const LiveMap = dynamic(
 
 export default function LiveMapPage() {
   const [initialPositions, setInitialPositions] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    async function load() {
-      try {
-        const data = await api.liveMap.positions();
-        setInitialPositions(data);
-      } catch {
-        // Silent — WebSocket will provide live updates
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    api.liveMap.positions()
+      .then((data) => setInitialPositions(data))
+      .catch(() => {});
   }, []);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-          <p className="text-sm text-muted-foreground">Loading map...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <LiveMap
