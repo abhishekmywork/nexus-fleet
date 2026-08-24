@@ -8,7 +8,6 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { LiveMapService } from './live-map.service';
-import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 export interface PositionPayload {
   deviceId: string;
@@ -62,12 +61,7 @@ export class LiveMapGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       this.logger.log(`WS client connected: ${client.id} (tenant: ${tenantId})`);
 
-      const user: AuthenticatedUser = {
-        id: payload.sub,
-        email: payload.email,
-        tenantId,
-        isSuperUser,
-      };
+      const user = { tenantId, isSuperUser } as any;
       const positions = await this.liveMapService.getActivePositions(user);
       client.emit('positions:initial', positions);
     } catch (err) {
