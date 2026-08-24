@@ -419,7 +419,12 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(
     new Set()
   );
-  const [showGeofences, setShowGeofences] = useState(false);
+  const [showGeofences, setShowGeofences] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("live-map-geofences") === "true";
+    }
+    return false;
+  });
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapMode, setMapMode] = useState<MapMode>(() => {
@@ -461,10 +466,16 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   }, [initialPositions, setInitialPositions]);
 
   React.useEffect(() => {
-    if (showGeofences && geofences.length === 0) {
-      api.geofences.list().then(setGeofences).catch(() => {});
-    }
-  }, [showGeofences, geofences.length]);
+    api.geofences.list().then(setGeofences).catch(() => {});
+  }, []);
+
+  const handleToggleGeofences = useCallback(() => {
+    setShowGeofences((prev) => {
+      const next = !prev;
+      localStorage.setItem("live-map-geofences", String(next));
+      return next;
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!modeMenuOpen) return;
@@ -561,7 +572,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
             onShowAll={showAll}
             onHideAll={hideAll}
             showGeofences={showGeofences}
-            onToggleGeofences={() => setShowGeofences((p) => !p)}
+            onToggleGeofences={handleToggleGeofences}
             open={sidebarOpen}
             onToggleOpen={() => setSidebarOpen((p) => !p)}
           />
