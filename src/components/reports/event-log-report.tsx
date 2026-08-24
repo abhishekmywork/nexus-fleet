@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +30,6 @@ export function EventLogReport({ reportType, onReportTypeChange, reportOptions, 
 }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const router = useRouter();
 
   const handleGenerate = async (params: { from: string; to: string; eventType?: string; deviceId?: string }) => {
     setLoading(true);
@@ -46,6 +44,6 @@ export function EventLogReport({ reportType, onReportTypeChange, reportOptions, 
   };
 
   return (
-    <ReportShell title="Event Log" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="event-log" />
+    <ReportShell title="Event Log" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="event-log" />
   );
 }

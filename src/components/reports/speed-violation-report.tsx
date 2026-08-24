@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
@@ -28,7 +27,6 @@ export function SpeedViolationReport({ reportType, onReportTypeChange, reportOpt
 }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const router = useRouter();
 
   const handleGenerate = async (params: { from: string; to: string; speedLimit?: number }) => {
     setLoading(true);
@@ -43,6 +41,6 @@ export function SpeedViolationReport({ reportType, onReportTypeChange, reportOpt
   };
 
   return (
-    <ReportShell title="Speed Violations" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="speed-violations" />
+    <ReportShell title="Speed Violations" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="speed-violations" />
   );
 }

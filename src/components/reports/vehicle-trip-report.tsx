@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
@@ -41,7 +40,6 @@ export function VehicleTripReport({ reportType, onReportTypeChange, reportOption
 }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const router = useRouter();
 
   const handleGenerate = async (params: { from: string; to: string; deviceId?: string }) => {
     setLoading(true);
@@ -67,9 +65,6 @@ export function VehicleTripReport({ reportType, onReportTypeChange, reportOption
       loading={loading}
       data={data}
       columns={columns}
-      onViewMap={(row) =>
-        router.push(`/live-map?lat=${row.startLat ?? row.endLat ?? 0}&lng=${row.startLon ?? row.endLon ?? 0}`)
-      }
       exportFileName="vehicle-trips"
     />
   );

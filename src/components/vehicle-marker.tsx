@@ -24,7 +24,7 @@ function formatTimestamp(ts: string): string {
   return new Date(ts).toLocaleString();
 }
 
-export function VehicleMarker({
+export const VehicleMarker = React.memo(function VehicleMarker({
   lat,
   lng,
   heading,
@@ -168,4 +168,4 @@ export function VehicleMarker({
       )}
     </AdvancedMarker>
   );
-}
+});

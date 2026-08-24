@@ -15,6 +15,8 @@ interface ExportToolbarProps {
 function formatValue(val: any): string {
   if (val === null || val === undefined) return "";
   if (typeof val === "boolean") return val ? "Yes" : "No";
+  if (Array.isArray(val)) return `${val.length} points`;
+  if (typeof val === "object") return JSON.stringify(val);
   return String(val);
 }
 

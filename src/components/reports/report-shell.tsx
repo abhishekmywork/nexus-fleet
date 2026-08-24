@@ -75,7 +75,6 @@ interface ReportShellProps {
   loading: boolean;
   data: any[];
   columns: Column[];
-  onViewMap?: (row: any) => void;
   exportFileName?: string;
 }
 
@@ -91,7 +90,6 @@ export function ReportShell({
   loading,
   data,
   columns,
-  onViewMap,
   exportFileName,
 }: ReportShellProps) {
   const persisted = loadPersistedState();
@@ -260,14 +258,13 @@ export function ReportShell({
                 {columns.map((col) => (
                   <TableHead key={col.key}>{col.label}</TableHead>
                 ))}
-                {onViewMap && <TableHead className="w-24">Map</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length + (onViewMap ? 1 : 0)}
+                    colSpan={columns.length}
                     className="h-32 text-center"
                   >
                     <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
@@ -276,7 +273,7 @@ export function ReportShell({
               ) : data.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length + (onViewMap ? 1 : 0)}
+                    colSpan={columns.length}
                     className="h-32 text-center text-muted-foreground"
                   >
                     No data. Set filters and click Generate.
@@ -292,17 +289,6 @@ export function ReportShell({
                           : (col.getValue ? col.getValue(row) : row[col.key]) ?? "—"}
                       </TableCell>
                     ))}
-                    {onViewMap && (
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onViewMap(row)}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))
               )}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
@@ -36,7 +35,6 @@ export function IdleReport({ reportType, onReportTypeChange, reportOptions, repo
 }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const router = useRouter();
 
   const handleGenerate = async (params: { from: string; to: string; minDuration?: number }) => {
     setLoading(true);
@@ -51,6 +49,6 @@ export function IdleReport({ reportType, onReportTypeChange, reportOptions, repo
   };
 
   return (
-    <ReportShell title="Idle & Stoppages" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="idle-stoppages" />
+    <ReportShell title="Idle & Stoppages" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="idle-stoppages" />
   );
 }

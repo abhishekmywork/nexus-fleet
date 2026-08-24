@@ -3,8 +3,7 @@ import ReportMapView from "./report-map-view";
 
 export const metadata: Metadata = {
   title: "Report Map",
-  description:
-    "Visualize fleet report data on an interactive map. View trip routes, geofence events, and vehicle positions.",
+  description: "Visualize fleet report data on an interactive map.",
   robots: { index: false, follow: false },
 };
 

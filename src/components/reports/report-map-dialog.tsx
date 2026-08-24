@@ -63,7 +63,7 @@ export function ReportMapDialog({ data, columns, title, reportId }: ReportMapDia
       sessionStorage.setItem(MAP_STORAGE_KEY, JSON.stringify({ title, data: noPoints, columns }));
     }
 
-    router.push("/reports/map");
+    router.push("/report-map");
   };
 
   return (

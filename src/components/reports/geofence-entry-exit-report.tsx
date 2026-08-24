@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +28,6 @@ export function GeofenceEntryExitReport({ reportType, onReportTypeChange, report
 }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
-  const router = useRouter();
 
   const handleGenerate = async (params: { from: string; to: string; geofenceId?: string }) => {
     setLoading(true);
@@ -44,6 +42,6 @@ export function GeofenceEntryExitReport({ reportType, onReportTypeChange, report
   };
 
   return (
-    <ReportShell title="Geofence Entry/Exit" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} onViewMap={(row) => router.push(`/live-map?lat=${row.latitude ?? 0}&lng=${row.longitude ?? 0}`)} exportFileName="geofence-entry-exit" />
+    <ReportShell title="Geofence Entry/Exit" reportId={REPORT_ID} reportType={reportType} onReportTypeChange={onReportTypeChange} reportOptions={reportOptions} reportMeta={reportMeta} onGenerate={handleGenerate} loading={loading} data={data} columns={columns} exportFileName="geofence-entry-exit" />
   );
 }

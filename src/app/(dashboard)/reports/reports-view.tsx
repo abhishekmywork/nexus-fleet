@@ -38,14 +38,14 @@ type ReportId = (typeof REPORTS)[number]["id"];
 export const REPORT_META: Record<string, ReportMeta> = {
   "vehicle-trips": { label: "Vehicle Trips", needsVehicle: true },
   "daily-summary": { label: "Daily Summary", needsVehicle: true },
-  "speed-violations": { label: "Speed Violations", needsVehicle: false, extraFields: ["speedLimit"] },
-  "idle-stoppages": { label: "Idle & Stoppages", needsVehicle: false, extraFields: ["minDuration"] },
+  "speed-violations": { label: "Speed Violations", needsVehicle: true, extraFields: ["speedLimit"] },
+  "idle-stoppages": { label: "Idle & Stoppages", needsVehicle: true, extraFields: ["minDuration"] },
   ignition: { label: "Ignition Events", needsVehicle: true },
-  "geofence-entry-exit": { label: "Geofence Entry/Exit", needsVehicle: false },
-  "geofence-summary": { label: "Geofence Summary", needsVehicle: false },
+  "geofence-entry-exit": { label: "Geofence Entry/Exit", needsVehicle: true },
+  "geofence-summary": { label: "Geofence Summary", needsVehicle: true },
   "event-log": { label: "Event Log", needsVehicle: true, extraFields: ["eventType"] },
-  "driver-activity": { label: "Driver Activity", needsVehicle: false },
-  "device-health": { label: "Device Health", needsVehicle: false },
+  "driver-activity": { label: "Driver Activity", needsVehicle: true },
+  "device-health": { label: "Device Health", needsVehicle: true },
   "travel-distance": { label: "Travel Distance", needsVehicle: true },
 };
 

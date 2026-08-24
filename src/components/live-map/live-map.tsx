@@ -419,7 +419,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(
     new Set()
   );
-  const [showGeofences, setShowGeofences] = useState(true);
+  const [showGeofences, setShowGeofences] = useState(false);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mapMode, setMapMode] = useState<MapMode>(() => {
@@ -461,8 +461,10 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   }, [initialPositions, setInitialPositions]);
 
   React.useEffect(() => {
-    api.geofences.list().then(setGeofences).catch(() => {});
-  }, []);
+    if (showGeofences && geofences.length === 0) {
+      api.geofences.list().then(setGeofences).catch(() => {});
+    }
+  }, [showGeofences, geofences.length]);
 
   React.useEffect(() => {
     if (!modeMenuOpen) return;
@@ -513,9 +515,10 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     setVisibleVehicles(new Set());
   }, []);
 
-  const allPositions = Array.from(positions.values());
-  const visiblePositions = allPositions.filter((p) =>
-    visibleVehicles.has(p.deviceId)
+  const allPositions = React.useMemo(() => Array.from(positions.values()), [positions]);
+  const visiblePositions = React.useMemo(
+    () => allPositions.filter((p) => visibleVehicles.has(p.deviceId)),
+    [allPositions, visibleVehicles]
   );
 
   const animatedPositions = useVehicleAnimation(positions);
@@ -524,6 +527,13 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
     ? visiblePositions.find((p) => p.deviceId === selectedMarkerDeviceId) ??
       allPositions.find((p) => p.deviceId === selectedMarkerDeviceId)
     : null;
+
+  const handleMarkerClick = useCallback(
+    (deviceId: string) => {
+      setSelectedMarkerDeviceId((prev) => (prev === deviceId ? null : deviceId));
+    },
+    []
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
@@ -595,11 +605,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
                 plateNumber={pos.plateNumber}
                 timestamp={pos.timestamp}
                 isSelected={selectedMarkerDeviceId === pos.deviceId}
-                onClick={() => {
-                  setSelectedMarkerDeviceId((prev) =>
-                    prev === pos.deviceId ? null : pos.deviceId
-                  );
-                }}
+                onClick={() => handleMarkerClick(pos.deviceId)}
               />
             );
           })}
