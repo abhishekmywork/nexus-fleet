@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
-import ReportMapView from "./report-map-view";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Report Map",
-  description: "Visualize fleet report data on an interactive map.",
-  robots: { index: false, follow: false },
-};
+import dynamic from "next/dynamic";
+
+const ReportMapView = dynamic(
+  () => import("./report-map-view").then((m) => m.default),
+  { ssr: false }
+);
 
 export default function ReportMapPage() {
   return <ReportMapView />;

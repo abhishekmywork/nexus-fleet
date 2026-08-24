@@ -144,27 +144,110 @@ export default function ReportMapView() {
   const [exportOpen, setExportOpen] = React.useState(false);
   const [pdfTitle, setPdfTitle] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
-  const mapRef = React.useRef<HTMLDivElement>(null);
+
+  function buildStaticMapUrl(): string | null {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+    if (!apiKey || !payload?.data.length) return null;
+
+    const allPts: { lat: number; lng: number }[] = [];
+    const markers: string[] = [];
+    const paths: string[] = [];
+
+    for (const row of payload.data) {
+      if (Array.isArray(row.points) && row.points.length >= 2) {
+        const trail = row.points
+          .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lon) }))
+          .filter((p: any) => isFinite(p.lat) && isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0));
+
+        if (trail.length >= 2) {
+          allPts.push(...trail);
+          paths.push(`path=color:0xFF6600CC|weight:3|enc:` + encodePolyline(trail));
+          markers.push(`markers=color:0x22C55E|label:S|${trail[0].lat},${trail[0].lng}`);
+          markers.push(`markers=color:0xEF4444|label:E|${trail[trail.length - 1].lat},${trail[trail.length - 1].lng}`);
+        }
+        continue;
+      }
+
+      const lat = fmtCoord(row.latitude ?? row.startLat);
+      const lon = fmtCoord(row.longitude ?? row.startLon);
+      if (lat == null || lon == null) continue;
+      allPts.push({ lat, lng: lon });
+      markers.push(`markers=color:0x3B82F6|label:V|${lat},${lon}`);
+    }
+
+    if (!allPts.length) return null;
+
+    let center: string;
+    if (allPts.length === 1) {
+      center = `${allPts[0].lat},${allPts[0].lng}`;
+    } else {
+      const minLat = Math.min(...allPts.map((p) => p.lat));
+      const maxLat = Math.max(...allPts.map((p) => p.lat));
+      const minLng = Math.min(...allPts.map((p) => p.lng));
+      const maxLng = Math.max(...allPts.map((p) => p.lng));
+      center = `${(minLat + maxLat) / 2},${(minLng + maxLng) / 2}`;
+    }
+
+    const size = "800x500";
+    const params = [`center=${center}`, `zoom=auto`, `size=${size}`, `maptype=roadmap`, `key=${apiKey}`, ...markers, ...paths];
+
+    return `https://maps.googleapis.com/maps/api/staticmap?${params.join("&")}`;
+  }
+
+  function encodePolyline(points: { lat: number; lng: number }[]): string {
+    let result = "";
+    let prevLat = 0;
+    let prevLng = 0;
+    for (const point of points) {
+      const curLat = Math.round(point.lat * 1e5);
+      const curLng = Math.round(point.lng * 1e5);
+      result += encodeNumber(curLat - prevLat) + encodeNumber(curLng - prevLng);
+      prevLat = curLat;
+      prevLng = curLng;
+    }
+    return result;
+  }
+
+  function encodeNumber(num: number): string {
+    let result = "";
+    let n = num << 1;
+    if (num < 0) n = ~n;
+    while (n >= 0x20) {
+      result += String.fromCharCode((n & 0x1f) | 0x20);
+      n >>= 5;
+    }
+    result += String.fromCharCode(n);
+    return result;
+  }
+
+  async function fetchMapImage(url: string): Promise<string | null> {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  }
 
   const handleExportPDF = async () => {
     if (!payload || !pdfTitle.trim()) return;
     setExporting(true);
 
     try {
-      const [{ default: jsPDF }, { default: autoTable }, { domToPng }] = await Promise.all([
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
         import("jspdf"),
         import("jspdf-autotable"),
-        import("modern-screenshot"),
       ]);
 
-      let mapImgData: string | null = null;
-
-      if (payload.data.length > 0 && mapRef.current) {
-        try {
-          await new Promise((r) => setTimeout(r, 800));
-          mapImgData = await domToPng(mapRef.current, { scale: 2, backgroundColor: "#ffffff" });
-        } catch {}
-      }
+      const staticUrl = buildStaticMapUrl();
+      const mapImgData = staticUrl ? await fetchMapImage(staticUrl) : null;
 
       const doc = new jsPDF({ orientation: "landscape" });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -185,7 +268,7 @@ export default function ReportMapView() {
       if (mapImgData) {
         const margin = 14;
         const imgWidth = pageWidth - margin * 2;
-        const imgHeight = (800 / 1200) * imgWidth;
+        const imgHeight = (9 / 16) * imgWidth;
         const maxMapHeight = pageHeight * 0.45;
         const finalHeight = Math.min(imgHeight, maxMapHeight);
         doc.addImage(mapImgData, "PNG", margin, 34, imgWidth, finalHeight);
@@ -260,7 +343,7 @@ export default function ReportMapView() {
   }
 
   return (
-    <div ref={mapRef} className="relative flex h-screen w-screen overflow-hidden">
+    <div className="relative flex h-screen w-screen overflow-hidden">
       <Map
         defaultCenter={DEFAULT_CENTER}
         defaultZoom={12}
