@@ -4,6 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Map, useMap } from "@vis.gl/react-google-maps";
 import { ArrowLeft, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogOverlay,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 const MAP_STORAGE_KEY = "report-map-data";
 const DEFAULT_CENTER = { lat: 28.6139, lng: 77.209 };
@@ -13,6 +22,14 @@ interface ReportMapData {
   title: string;
   data: any[];
   columns: { key: string; label: string; getValue?: (row: any) => any; render?: (val: any, row: any) => React.ReactNode }[];
+}
+
+function formatValue(val: any): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "boolean") return val ? "Yes" : "No";
+  if (Array.isArray(val)) return `${val.length} points`;
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
 }
 
 function fmtCoord(val: any): number | null {
@@ -124,6 +141,90 @@ export default function ReportMapView() {
   const router = useRouter();
   const [payload, setPayload] = React.useState<ReportMapData | null>(null);
   const [loaded, setLoaded] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [pdfTitle, setPdfTitle] = React.useState("");
+  const [exporting, setExporting] = React.useState(false);
+  const mapRef = React.useRef<HTMLDivElement>(null);
+
+  const handleExportPDF = async () => {
+    if (!payload || !pdfTitle.trim()) return;
+    setExporting(true);
+
+    try {
+      const [{ default: jsPDF }, { default: autoTable }, { domToPng }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+        import("modern-screenshot"),
+      ]);
+
+      let mapImgData: string | null = null;
+
+      if (payload.data.length > 0 && mapRef.current) {
+        try {
+          await new Promise((r) => setTimeout(r, 800));
+          mapImgData = await domToPng(mapRef.current, { scale: 2, backgroundColor: "#ffffff" });
+        } catch {}
+      }
+
+      const doc = new jsPDF({ orientation: "landscape" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfTitle.trim(), 14, 20);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(`${payload.data.length} data points | Generated ${new Date().toLocaleString()}`, 14, 28);
+      doc.setTextColor(0);
+
+      let tableStartY = 34;
+
+      if (mapImgData) {
+        const margin = 14;
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = (800 / 1200) * imgWidth;
+        const maxMapHeight = pageHeight * 0.45;
+        const finalHeight = Math.min(imgHeight, maxMapHeight);
+        doc.addImage(mapImgData, "PNG", margin, 34, imgWidth, finalHeight);
+        tableStartY = 34 + finalHeight + 8;
+      }
+
+      if (tableStartY > pageHeight - 40) {
+        doc.addPage();
+        tableStartY = 16;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${pdfTitle.trim()} — Data`, 14, tableStartY);
+
+      const visibleCols = payload.columns.filter(
+        (c) => !Array.isArray(payload.data[0]?.[c.key]) || c.key === "points"
+      );
+
+      autoTable(doc, {
+        startY: tableStartY + 6,
+        head: [visibleCols.map((c) => c.label)],
+        body: payload.data.map((row) =>
+          visibleCols.map((col) =>
+            formatValue(col.getValue ? col.getValue(row) : row[col.key])
+          )
+        ),
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [37, 99, 235] },
+        margin: { left: 14, right: 14 },
+      });
+
+      doc.save(`${pdfTitle.trim().toLowerCase().replace(/\s+/g, "-")}.pdf`);
+    } finally {
+      setExporting(false);
+      setExportOpen(false);
+      setPdfTitle("");
+    }
+  };
 
   React.useEffect(() => {
     try {
@@ -159,7 +260,7 @@ export default function ReportMapView() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden">
+    <div ref={mapRef} className="relative flex h-screen w-screen overflow-hidden">
       <Map
         defaultCenter={DEFAULT_CENTER}
         defaultZoom={12}
@@ -184,6 +285,41 @@ export default function ReportMapView() {
       >
         <ArrowLeft className="size-4" />
       </button>
+
+      {/* Export button */}
+      <button
+        onClick={() => setExportOpen(true)}
+        disabled={exporting}
+        className="absolute top-4 right-4 z-[1000] flex h-10 items-center gap-1.5 rounded-lg border bg-background/90 px-3 text-xs font-medium shadow-sm backdrop-blur hover:bg-accent disabled:opacity-50"
+      >
+        <FileText className="size-3.5" />
+        {exporting ? "Exporting..." : "Export PDF"}
+      </button>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogOverlay className="z-[9998]" />
+        <DialogContent className="sm:max-w-md z-[9999]">
+          <DialogHeader>
+            <DialogTitle>Export PDF</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Report Title</label>
+            <Input
+              value={pdfTitle}
+              onChange={(e) => setPdfTitle(e.target.value)}
+              placeholder="e.g. Vehicle Trip Report - August 2026"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleExportPDF(); }}
+            />
+          </div>
+          <DialogFooter>
+            <button onClick={() => setExportOpen(false)} className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent">Cancel</button>
+            <button onClick={handleExportPDF} disabled={!pdfTitle.trim() || exporting} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+              {exporting ? "Exporting..." : "Export"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
