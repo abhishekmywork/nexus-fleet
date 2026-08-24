@@ -74,36 +74,17 @@ export class LiveMapService {
   }
 
   private async buildPositions(devices: GPSDevice[]): Promise<PositionResponse[]> {
-    if (devices.length === 0) return [];
-
-    const deviceIds = devices.map((d) => d.id);
-
-    const latestReadings = await this.readings
-      .createQueryBuilder('r')
-      .select('r.*')
-      .addSelect(
-        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
-      )
-      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
-      .getRawMany<{ rn: string } & Record<string, any>>();
-
-    const latestByDevice = new Map<string, Record<string, any>>();
-    for (const row of latestReadings) {
-      if (Number(row.rn) === 1) {
-        latestByDevice.set(row.deviceId, row);
-      }
-    }
-
-    const deviceMap = new Map<string, GPSDevice>();
-    for (const d of devices) deviceMap.set(d.id, d);
-
     const results: PositionResponse[] = [];
 
-    for (const deviceId of deviceIds) {
-      const latest = latestByDevice.get(deviceId);
+    for (const device of devices) {
+      const latest = await this.readings
+        .createQueryBuilder('r')
+        .where('r.deviceId = :deviceId', { deviceId: device.id })
+        .orderBy('r.timestamp', 'DESC')
+        .getOne();
+
       if (!latest) continue;
 
-      const device = deviceMap.get(deviceId)!;
       const vehicle = device.vehicle as any;
 
       results.push({

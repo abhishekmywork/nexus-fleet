@@ -6,7 +6,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? "";
 
 export function GoogleMapsProvider({ children }: { children: React.ReactNode }) {
   return (
-    <APIProvider apiKey={MAPS_KEY} libraries={["marker"]}>
+    <APIProvider apiKey={MAPS_KEY} libraries={["marker", "geometry"]}>
       {children}
     </APIProvider>
   );
