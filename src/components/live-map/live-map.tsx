@@ -472,6 +472,12 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   }, [initialPositions, setInitialPositions]);
 
   React.useEffect(() => {
+    if (positions.size > 0 && visibleVehicles.size === 0) {
+      setVisibleVehicles(new Set(positions.keys()));
+    }
+  }, [positions]);
+
+  React.useEffect(() => {
     api.geofences.list().then(setGeofences).catch(() => {});
   }, []);
 

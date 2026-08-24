@@ -3,14 +3,12 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { GPSDevice } from '../gps-devices/gps-device.entity';
+import { LiveMapService } from './live-map.service';
+import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 export interface PositionPayload {
   deviceId: string;
@@ -29,7 +27,7 @@ export interface PositionPayload {
 
 @WebSocketGateway({
     cors: { origin: ['http://localhost:3000', 'http://192.168.50.71:3000', 'http://10.118.221.120:3000'] },
-  namespace: '/live-map',
+    namespace: '/live-map',
 })
 export class LiveMapGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(LiveMapGateway.name);
@@ -37,13 +35,11 @@ export class LiveMapGateway implements OnGatewayConnection, OnGatewayDisconnect 
   @WebSocketServer()
   server: Server;
 
-  /** clientId → tenantId */
   private clientTenants = new Map<string, string>();
 
   constructor(
     private readonly jwtService: JwtService,
-    @InjectRepository(GPSDevice)
-    private readonly devices: Repository<GPSDevice>,
+    private readonly liveMapService: LiveMapService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -60,10 +56,20 @@ export class LiveMapGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
       const payload = await this.jwtService.verifyAsync(token);
       const tenantId: string = payload.tenantId ?? '';
+      const isSuperUser = payload.isSuperUser ?? false;
       this.clientTenants.set(client.id, tenantId);
       client.join(`tenant:${tenantId}`);
 
       this.logger.log(`WS client connected: ${client.id} (tenant: ${tenantId})`);
+
+      const user: AuthenticatedUser = {
+        id: payload.sub,
+        email: payload.email,
+        tenantId,
+        isSuperUser,
+      };
+      const positions = await this.liveMapService.getActivePositions(user);
+      client.emit('positions:initial', positions);
     } catch (err) {
       this.logger.warn(`WS connection rejected: ${err instanceof Error ? err.message : err}`);
       client.disconnect();

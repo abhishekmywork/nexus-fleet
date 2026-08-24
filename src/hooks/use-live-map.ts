@@ -46,6 +46,16 @@ export function useLiveMap(token: string) {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
 
+    socket.on("positions:initial", (items: LivePosition[]) => {
+      setPositions((prev) => {
+        const next = new Map(prev);
+        for (const item of items) {
+          next.set(item.deviceId, item);
+        }
+        return next;
+      });
+    });
+
     socket.on("position:update", (payload: LivePosition) => {
       setPositions((prev) => {
         const next = new Map(prev);
