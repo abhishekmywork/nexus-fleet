@@ -22,7 +22,7 @@ import type { LivePosition } from "@/hooks/use-live-map";
 
 interface VehicleSidebarProps {
   positions: LivePosition[];
-  visibleVehicles: Set<string>;
+  hiddenVehicles: Set<string>;
   selectedDeviceId: string | null;
   onToggle: (deviceId: string) => void;
   onSelect: (deviceId: string) => void;
@@ -49,7 +49,7 @@ function timeAgo(ts: string): string {
 
 export function VehicleSidebar({
   positions,
-  visibleVehicles,
+  hiddenVehicles,
   selectedDeviceId,
   onToggle,
   onSelect,
@@ -133,7 +133,7 @@ export function VehicleSidebar({
                     >
                       {/* Toggle visibility — separate from selection */}
                       <Switch
-                        checked={visibleVehicles.has(pos.deviceId)}
+                        checked={!hiddenVehicles.has(pos.deviceId)}
                         onCheckedChange={() => onToggle(pos.deviceId)}
                         size="sm"
                         className="mt-0.5 shrink-0"

@@ -420,29 +420,25 @@ interface LiveMapProps {
   token: string;
 }
 
-function loadVisibleVehicles(): Set<string> | null {
-  if (typeof window === "undefined") return null;
+function loadHiddenVehicles(): Set<string> {
+  if (typeof window === "undefined") return new Set();
   try {
-    const raw = localStorage.getItem("live-map-visible");
-    if (!raw) return null;
+    const raw = localStorage.getItem("live-map-hidden");
+    if (!raw) return new Set();
     const arr = JSON.parse(raw);
     if (Array.isArray(arr)) return new Set(arr);
   } catch {}
-  return null;
+  return new Set();
 }
 
-function saveVisibleVehicles(ids: Set<string>) {
+function saveHiddenVehicles(ids: Set<string>) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("live-map-visible", JSON.stringify(Array.from(ids)));
+  localStorage.setItem("live-map-hidden", JSON.stringify(Array.from(ids)));
 }
 
 export function LiveMap({ initialPositions, token }: LiveMapProps) {
   const { positions, connected, setInitialPositions } = useLiveMap(token);
-  const initializedRef = React.useRef(false);
-  const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(() => {
-    const saved = loadVisibleVehicles();
-    return saved ?? new Set();
-  });
+  const [hiddenVehicles, setHiddenVehicles] = useState<Set<string>>(() => loadHiddenVehicles());
   const [showGeofences, setShowGeofences] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("live-map-geofences") === "true";
@@ -485,20 +481,6 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
       setInitialPositions(initialPositions);
     }
   }, [initialPositions, setInitialPositions]);
-
-  React.useEffect(() => {
-    if (positions.size > 0 && !initializedRef.current) {
-      initializedRef.current = true;
-      const saved = loadVisibleVehicles();
-      if (saved) {
-        const currentIds = new Set(positions.keys());
-        const filtered = new Set([...saved].filter((id) => currentIds.has(id)));
-        setVisibleVehicles(filtered);
-      } else {
-        setVisibleVehicles(new Set(positions.keys()));
-      }
-    }
-  }, [positions]);
 
   React.useEffect(() => {
     api.geofences.list().then(setGeofences).catch(() => {});
@@ -545,31 +527,31 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   );
 
   const toggleVehicle = useCallback((deviceId: string) => {
-    setVisibleVehicles((prev) => {
+    setHiddenVehicles((prev) => {
       const next = new Set(prev);
       if (next.has(deviceId)) next.delete(deviceId);
       else next.add(deviceId);
-      saveVisibleVehicles(next);
+      saveHiddenVehicles(next);
       return next;
     });
   }, []);
 
   const showAll = useCallback(() => {
-    const next = new Set(positions.keys());
-    setVisibleVehicles(next);
-    saveVisibleVehicles(next);
-  }, [positions]);
+    const next = new Set<string>();
+    setHiddenVehicles(next);
+    saveHiddenVehicles(next);
+  }, []);
 
   const hideAll = useCallback(() => {
-    const next = new Set<string>();
-    setVisibleVehicles(next);
-    saveVisibleVehicles(next);
-  }, []);
+    const next = new Set(positions.keys());
+    setHiddenVehicles(next);
+    saveHiddenVehicles(next);
+  }, [positions]);
 
   const allPositions = React.useMemo(() => Array.from(positions.values()), [positions]);
   const visiblePositions = React.useMemo(
-    () => allPositions.filter((p) => visibleVehicles.has(p.deviceId)),
-    [allPositions, visibleVehicles]
+    () => allPositions.filter((p) => !hiddenVehicles.has(p.deviceId)),
+    [allPositions, hiddenVehicles]
   );
 
   const animatedPositions = useVehicleAnimation(positions);
@@ -605,7 +587,7 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
         >
           <VehicleSidebar
             positions={allPositions}
-            visibleVehicles={visibleVehicles}
+            hiddenVehicles={hiddenVehicles}
             selectedDeviceId={selectedDeviceId}
             onToggle={toggleVehicle}
             onSelect={selectVehicle}
