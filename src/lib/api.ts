@@ -359,6 +359,54 @@ export const api = {
       >("/dashboard/telemetry-summary"),
   },
 
+  analytics: {
+    overview: (from: string, to: string, extra?: string) =>
+      request<{
+        totalVehicles: number;
+        activeVehicles: number;
+        maintenanceVehicles: number;
+        fleetUtilization: number;
+        totalDistanceKm: number;
+        avgSpeed: number;
+        totalEvents: number;
+        dataQualityScore: number;
+      }>(`/analytics/overview?from=${from}&to=${to}${extra || ""}`),
+    eventHeatmap: (from: string, to: string, extra?: string) =>
+      request<Array<{ hour: number; dayOfWeek: number; count: number }>>(
+        `/analytics/event-heatmap?from=${from}&to=${to}${extra || ""}`
+      ),
+    speedAnalysis: (from: string, to: string, extra?: string) =>
+      request<{
+        distribution: Array<{ range: string; count: number }>;
+        topViolations: Array<{ vehiclePlate: string; vehicleMake: string; vehicleModel: string; speed: number; timestamp: string; latitude: number; longitude: number }>;
+        avgSpeedByVehicle: Array<{ vehicleId: string; plateNumber: string; avgSpeed: number }>;
+      }>(`/analytics/speed-analysis?from=${from}&to=${to}${extra || ""}`),
+    stoppageIntel: (from: string, to: string, extra?: string) =>
+      request<{
+        totalIdleMinutes: number;
+        totalDrivingMinutes: number;
+        idlePercentage: number;
+        topStoppages: Array<{ vehiclePlate: string; latitude: number; longitude: number; durationMinutes: number; startTime: string; endTime: string }>;
+        idleByHour: Array<{ hour: number; totalMinutes: number }>;
+      }>(`/analytics/stoppage-intel?from=${from}&to=${to}${extra || ""}`),
+    geofenceViolations: (from: string, to: string, extra?: string) =>
+      request<{
+        zoneStats: Array<{ geofenceId: string; geofenceName: string; entryCount: number; exitCount: number; avgDwellMinutes: number }>;
+        violationsByVehicle: Array<{ vehiclePlate: string; exitCount: number }>;
+      }>(`/analytics/geofence-violations?from=${from}&to=${to}${extra || ""}`),
+    driverScores: (from: string, to: string, extra?: string) =>
+      request<Array<{ driverId: string; firstName: string; lastName: string; score: number; overspeedCount: number; harshBrakingCount: number; harshAccelerationCount: number; sosCount: number }>>(
+        `/analytics/driver-scores?from=${from}&to=${to}${extra || ""}`
+      ),
+    deviceHealth: (from: string, to: string, extra?: string) =>
+      request<{
+        offlineCount: number;
+        lowBatteryCount: number;
+        avgSignalStrength: number;
+        deviceDetails: Array<{ deviceId: string; imei: string; vehiclePlate: string; lastSeen: string; batteryV: number | null; gsmSignal: number | null }>;
+      }>(`/analytics/device-health?from=${from}&to=${to}${extra || ""}`),
+  },
+
   permissions: {
     list: () => request<Permission[]>("/permissions"),
   },

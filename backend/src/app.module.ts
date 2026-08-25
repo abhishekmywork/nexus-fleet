@@ -40,6 +40,7 @@ import { ReportsModule } from './reports/reports.module';
 import { MobileModule } from './mobile/mobile.module';
 import { SubscriptionModule } from './subscriptions/subscription.module';
 import { NearestVehicleModule } from './nearest-vehicle/nearest-vehicle.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { NearestVehicleModule } from './nearest-vehicle/nearest-vehicle.module';
     GeofenceModule,
     NotificationModule,
     DashboardModule,
+    AnalyticsModule,
     SettingsModule,
     LiveMapModule,
     ReportsModule,
