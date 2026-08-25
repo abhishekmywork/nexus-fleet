@@ -182,32 +182,42 @@ export class DashboardService {
       })
       .getMany();
 
-    const positions: VehiclePosition[] = [];
-    for (const v of vehicles) {
-      if (!v.gpsDevice) {
-        positions.push({
-          id: v.id,
-          plateNumber: v.plateNumber,
-          make: v.make,
-          model: v.model,
-          status: v.status,
-          latitude: null,
-          longitude: null,
-          speed: null,
-          heading: null,
-          ignition: null,
-          lastSeen: null,
-        });
-        continue;
+    const deviceIds = vehicles.filter((v) => v.gpsDevice).map((v) => v.gpsDevice!.id);
+    if (deviceIds.length === 0) {
+      return vehicles.map((v) => ({
+        id: v.id,
+        plateNumber: v.plateNumber,
+        make: v.make,
+        model: v.model,
+        status: v.status,
+        latitude: null,
+        longitude: null,
+        speed: null,
+        heading: null,
+        ignition: null,
+        lastSeen: null,
+      }));
+    }
+
+    const latestReadings = await this.readings
+      .createQueryBuilder('r')
+      .select('r.*')
+      .addSelect(
+        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
+      )
+      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
+      .getRawMany<Record<string, any>>();
+
+    const latestByDevice = new Map<string, Record<string, any>>();
+    for (const row of latestReadings) {
+      if (Number(row.rn) === 1) {
+        latestByDevice.set(row.deviceId, row);
       }
+    }
 
-      const latest = await this.readings
-        .createQueryBuilder('r')
-        .where('r.deviceId = :deviceId', { deviceId: v.gpsDevice.id })
-        .orderBy('r.timestamp', 'DESC')
-        .getOne();
-
-      positions.push({
+    return vehicles.map((v) => {
+      const latest = v.gpsDevice ? latestByDevice.get(v.gpsDevice.id) : null;
+      return {
         id: v.id,
         plateNumber: v.plateNumber,
         make: v.make,
@@ -219,10 +229,8 @@ export class DashboardService {
         heading: latest?.heading ?? null,
         ignition: latest?.ignition ?? null,
         lastSeen: latest?.timestamp?.toISOString?.() ?? null,
-      });
-    }
-
-    return positions;
+      };
+    });
   }
 
   async getTelemetrySummary(
@@ -230,7 +238,6 @@ export class DashboardService {
   ): Promise<TelemetrySummaryEntry[]> {
     const tenantFilter = this.buildTenantFilter(user);
 
-    // Get all devices with their latest reading
     const devices = await this.devices
       .createQueryBuilder('device')
       .leftJoinAndSelect('device.vehicle', 'vehicle')
@@ -242,16 +249,29 @@ export class DashboardService {
       )
       .getMany();
 
-    const results: TelemetrySummaryEntry[] = [];
+    if (devices.length === 0) return [];
 
-    for (const device of devices) {
-      const latest = await this.readings
-        .createQueryBuilder('r')
-        .where('r.deviceId = :deviceId', { deviceId: device.id })
-        .orderBy('r.timestamp', 'DESC')
-        .getOne();
+    const deviceIds = devices.map((d) => d.id);
 
-      results.push({
+    const latestReadings = await this.readings
+      .createQueryBuilder('r')
+      .select('r.*')
+      .addSelect(
+        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
+      )
+      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
+      .getRawMany<Record<string, any>>();
+
+    const latestByDevice = new Map<string, Record<string, any>>();
+    for (const row of latestReadings) {
+      if (Number(row.rn) === 1) {
+        latestByDevice.set(row.deviceId, row);
+      }
+    }
+
+    return devices.map((device) => {
+      const latest = latestByDevice.get(device.id);
+      return {
         deviceId: device.id,
         imei: device.imei,
         vehiclePlate: (device as any).vehicle?.plateNumber ?? null,
@@ -266,10 +286,8 @@ export class DashboardService {
         gsmSignal: latest?.gsmSignal != null ? Number(latest.gsmSignal) : null,
         temperatureC: latest?.temperatureC != null ? Number(latest.temperatureC) : null,
         timestamp: latest?.timestamp?.toISOString?.() ?? new Date().toISOString(),
-      });
-    }
-
-    return results;
+      };
+    });
   }
 
   private buildTenantFilter(user: AuthenticatedUser): Record<string, any> {
