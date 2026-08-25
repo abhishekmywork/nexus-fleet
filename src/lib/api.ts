@@ -287,7 +287,7 @@ export const api = {
   }) => request<User>("/auth/me", { method: "PATCH", body: dto }),
 
   dashboard: {
-    stats: () =>
+    stats: (from?: string, to?: string) =>
       request<{
         totalVehicles: number;
         activeVehicles: number;
@@ -297,12 +297,14 @@ export const api = {
         totalEvents: number;
         unacknowledgedEvents: number;
         eventsToday: number;
-      }>("/dashboard/stats"),
-    eventsByType: () =>
-      request<Array<{ eventType: string; count: number }>>(
-        "/dashboard/events-by-type"
+      }>(
+        `/dashboard/stats${from && to ? `?from=${from}&to=${to}` : ""}`
       ),
-    recentEvents: (limit = 15) =>
+    eventsByType: (from?: string, to?: string) =>
+      request<Array<{ eventType: string; count: number }>>(
+        `/dashboard/events-by-type${from && to ? `?from=${from}&to=${to}` : ""}`
+      ),
+    recentEvents: (limit = 15, from?: string, to?: string) =>
       request<
         Array<{
           id: string;
@@ -317,7 +319,9 @@ export const api = {
           startedAt: string;
           createdAt: string;
         }>
-      >(`/dashboard/recent-events?limit=${limit}`),
+      >(
+        `/dashboard/recent-events?limit=${limit}${from && to ? `&from=${from}&to=${to}` : ""}`
+      ),
     vehiclePositions: () =>
       request<
         Array<{

@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
 import type {
   DashboardStats,
   EventTypeStat,
@@ -407,13 +408,28 @@ export default function DashboardPage() {
   const [telemetry, setTelemetry] = React.useState<TelemetrySummaryEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  const [dateRange, setDateRange] = React.useState<DateRange>(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    const day = monday.getDay();
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    return { from: monday, to: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999) };
+  });
+
+  const formatDateParam = (d: Date) => d.toISOString();
+
   React.useEffect(() => {
     async function load() {
+      setLoading(true);
       try {
+        const from = formatDateParam(dateRange.from);
+        const to = formatDateParam(dateRange.to);
         const [s, ebt, re, vp, ts] = await Promise.allSettled([
-          api.dashboard.stats(),
-          api.dashboard.eventsByType(),
-          api.dashboard.recentEvents(15),
+          api.dashboard.stats(from, to),
+          api.dashboard.eventsByType(from, to),
+          api.dashboard.recentEvents(15, from, to),
           api.dashboard.vehiclePositions(),
           api.dashboard.telemetrySummary(),
         ]);
@@ -430,7 +446,7 @@ export default function DashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [dateRange]);
 
   if (loading) {
     return (
@@ -442,10 +458,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`Welcome back, ${user?.firstName ?? "there"}`}
-        description="Fleet overview and real-time monitoring."
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          title={`Welcome back, ${user?.firstName ?? "there"}`}
+          description="Fleet overview and real-time monitoring."
+        />
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      </div>
 
       {/* KPI Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

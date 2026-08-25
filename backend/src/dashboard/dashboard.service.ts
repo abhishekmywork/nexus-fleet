@@ -81,7 +81,10 @@ export class DashboardService {
     private readonly readings: Repository<GPSReading>,
   ) {}
 
-  async getStats(user: AuthenticatedUser): Promise<DashboardStats> {
+  async getStats(
+    user: AuthenticatedUser,
+    range?: { start: Date; end: Date } | null,
+  ): Promise<DashboardStats> {
     const tenantFilter = this.buildTenantFilter(user);
 
     const [totalVehicles, activeVehicles, inactiveVehicles, maintenanceVehicles] =
@@ -96,15 +99,22 @@ export class DashboardService {
       where: tenantFilter,
     });
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const eventWhere: Record<string, any> = { ...tenantFilter };
+    if (range) {
+      eventWhere.startedAt = range.start as any;
+    }
 
-    const [totalEvents, unacknowledgedEvents, eventsToday] = await Promise.all([
-      this.events.count({ where: tenantFilter }),
+    const [totalEvents, unacknowledgedEvents, eventsInPeriod] = await Promise.all([
+      this.events.count({ where: eventWhere }),
       this.events.count({ where: { ...tenantFilter, acknowledged: false } }),
-      this.events.count({
-        where: { ...tenantFilter, startedAt: todayStart as any },
-      }),
+      this.events
+        .createQueryBuilder('e')
+        .where(
+          tenantFilter.tenantId ? 'e."tenantId" = :tenantId' : '1=1',
+          tenantFilter.tenantId ? { tenantId: tenantFilter.tenantId } : {},
+        )
+        .andWhere(range ? 'e."startedAt" >= :start AND e."startedAt" <= :end' : '1=1', range ? { start: range.start, end: range.end } : {})
+        .getCount(),
     ]);
 
     return {
@@ -115,20 +125,32 @@ export class DashboardService {
       totalDevices,
       totalEvents,
       unacknowledgedEvents,
-      eventsToday,
+      eventsToday: eventsInPeriod,
     };
   }
 
-  async getEventsByType(user: AuthenticatedUser): Promise<EventTypeStat[]> {
+  async getEventsByType(
+    user: AuthenticatedUser,
+    range?: { start: Date; end: Date } | null,
+  ): Promise<EventTypeStat[]> {
     const tenantFilter = this.buildTenantFilter(user);
 
-    const results = await this.events
+    const qb = this.events
       .createQueryBuilder('e')
       .select('e.eventType', 'eventType')
       .addSelect('COUNT(*)', 'count')
-      .where(tenantFilter.tenantId ? 'e.tenantId = :tenantId' : '1=1', {
+      .where(tenantFilter.tenantId ? 'e."tenantId" = :tenantId' : '1=1', {
         ...(tenantFilter.tenantId ? { tenantId: tenantFilter.tenantId } : {}),
-      })
+      });
+
+    if (range) {
+      qb.andWhere('e."startedAt" >= :start AND e."startedAt" <= :end', {
+        start: range.start,
+        end: range.end,
+      });
+    }
+
+    const results = await qb
       .groupBy('e.eventType')
       .orderBy('count', 'DESC')
       .getRawMany();
@@ -142,17 +164,27 @@ export class DashboardService {
   async getRecentEvents(
     user: AuthenticatedUser,
     limit = 15,
+    range?: { start: Date; end: Date } | null,
   ): Promise<RecentEvent[]> {
     const tenantFilter = this.buildTenantFilter(user);
 
-    const events = await this.events
+    const qb = this.events
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.device', 'device')
       .leftJoinAndSelect('device.vehicle', 'vehicle')
-      .where(tenantFilter.tenantId ? 'e.tenantId = :tenantId' : '1=1', {
+      .where(tenantFilter.tenantId ? 'e."tenantId" = :tenantId' : '1=1', {
         ...(tenantFilter.tenantId ? { tenantId: tenantFilter.tenantId } : {}),
-      })
-      .orderBy('e.startedAt', 'DESC')
+      });
+
+    if (range) {
+      qb.andWhere('e."startedAt" >= :start AND e."startedAt" <= :end', {
+        start: range.start,
+        end: range.end,
+      });
+    }
+
+    const events = await qb
+      .orderBy('e."startedAt"', 'DESC')
       .take(limit)
       .getMany();
 
