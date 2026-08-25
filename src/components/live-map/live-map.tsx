@@ -420,11 +420,29 @@ interface LiveMapProps {
   token: string;
 }
 
+function loadVisibleVehicles(): Set<string> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("live-map-visible");
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return new Set(arr);
+  } catch {}
+  return null;
+}
+
+function saveVisibleVehicles(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("live-map-visible", JSON.stringify(Array.from(ids)));
+}
+
 export function LiveMap({ initialPositions, token }: LiveMapProps) {
   const { positions, connected, setInitialPositions } = useLiveMap(token);
-  const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(
-    new Set()
-  );
+  const initializedRef = React.useRef(false);
+  const [visibleVehicles, setVisibleVehicles] = useState<Set<string>>(() => {
+    const saved = loadVisibleVehicles();
+    return saved ?? new Set();
+  });
   const [showGeofences, setShowGeofences] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("live-map-geofences") === "true";
@@ -465,15 +483,20 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
   React.useEffect(() => {
     if (initialPositions.length > 0) {
       setInitialPositions(initialPositions);
-      setVisibleVehicles(
-        new Set(initialPositions.map((p) => p.deviceId))
-      );
     }
   }, [initialPositions, setInitialPositions]);
 
   React.useEffect(() => {
-    if (positions.size > 0 && visibleVehicles.size === 0) {
-      setVisibleVehicles(new Set(positions.keys()));
+    if (positions.size > 0 && !initializedRef.current) {
+      initializedRef.current = true;
+      const saved = loadVisibleVehicles();
+      if (saved) {
+        const currentIds = new Set(positions.keys());
+        const filtered = new Set([...saved].filter((id) => currentIds.has(id)));
+        setVisibleVehicles(filtered);
+      } else {
+        setVisibleVehicles(new Set(positions.keys()));
+      }
     }
   }, [positions]);
 
@@ -526,16 +549,21 @@ export function LiveMap({ initialPositions, token }: LiveMapProps) {
       const next = new Set(prev);
       if (next.has(deviceId)) next.delete(deviceId);
       else next.add(deviceId);
+      saveVisibleVehicles(next);
       return next;
     });
   }, []);
 
   const showAll = useCallback(() => {
-    setVisibleVehicles(new Set(Array.from(positions.keys())));
+    const next = new Set(positions.keys());
+    setVisibleVehicles(next);
+    saveVisibleVehicles(next);
   }, [positions]);
 
   const hideAll = useCallback(() => {
-    setVisibleVehicles(new Set());
+    const next = new Set<string>();
+    setVisibleVehicles(next);
+    saveVisibleVehicles(next);
   }, []);
 
   const allPositions = React.useMemo(() => Array.from(positions.values()), [positions]);
