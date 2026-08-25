@@ -184,7 +184,7 @@ export class DashboardService {
     }
 
     const events = await qb
-      .orderBy('e."startedAt"', 'DESC')
+      .orderBy('startedAt', 'DESC')
       .take(limit)
       .getMany();
 
