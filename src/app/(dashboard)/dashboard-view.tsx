@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  Loader2,
   Car,
   Users,
   Radio,
@@ -22,6 +21,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -63,6 +63,31 @@ const STATUS_COLORS: Record<string, string> = {
   maintenance: "text-yellow-600 bg-yellow-50",
 };
 
+const EMPTY_STATS: DashboardStats = {
+  totalVehicles: 0,
+  activeVehicles: 0,
+  inactiveVehicles: 0,
+  maintenanceVehicles: 0,
+  totalDevices: 0,
+  totalEvents: 0,
+  unacknowledgedEvents: 0,
+  eventsToday: 0,
+};
+
+function StatCardSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardContent className="flex items-center gap-4 p-4">
+        <Skeleton className="size-10 rounded-lg" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-7 w-12" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -84,6 +109,25 @@ function StatCard({
           <p className="text-2xl font-bold">{value}</p>
           <p className="text-sm text-muted-foreground">{label}</p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EventsByTypeChartSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Events by Type</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-3 w-[130px]" />
+            <Skeleton className="h-5 flex-1 rounded-full" />
+            <Skeleton className="h-3 w-8" />
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -121,6 +165,27 @@ function EventsByTypeChart({ data }: { data: EventTypeStat[] }) {
   );
 }
 
+function VehicleStatusChartSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Fleet Status</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Skeleton className="h-4 w-full rounded-full" />
+        <div className="grid grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="text-center space-y-1">
+              <Skeleton className="h-6 w-10 mx-auto" />
+              <Skeleton className="h-3 w-16 mx-auto" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function VehicleStatusChart({ stats }: { stats: DashboardStats }) {
   const total = stats.totalVehicles || 1;
   const segments = [
@@ -151,6 +216,45 @@ function VehicleStatusChart({ stats }: { stats: DashboardStats }) {
               <p className="text-xs text-muted-foreground">{s.label}</p>
             </div>
           ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentEventsTableSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Recent Events</CardTitle>
+          <Skeleton className="h-8 w-16" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Vehicle</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Speed</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead className="w-[80px]">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="size-4 rounded-full" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>
@@ -235,6 +339,29 @@ function RecentEventsTable({ events }: { events: DashboardEvent[] }) {
   );
 }
 
+function VehicleMapSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Fleet Map</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-12 rounded-full" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function VehicleMap({ positions }: { positions: VehiclePosition[] }) {
   const positioned = positions.filter(
     (p) => p.latitude != null && p.longitude != null
@@ -297,6 +424,49 @@ function VehicleMap({ positions }: { positions: VehiclePosition[] }) {
             </div>
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TelemetryTableSkeleton() {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Telemetry Summary</CardTitle>
+          <Skeleton className="h-8 w-16" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Vehicle</TableHead>
+                <TableHead>Speed</TableHead>
+                <TableHead>Ignition</TableHead>
+                <TableHead>Battery</TableHead>
+                <TableHead>Signal</TableHead>
+                <TableHead>Odometer</TableHead>
+                <TableHead>Last Seen</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-10" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-6" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -402,11 +572,14 @@ export default function DashboardPage() {
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
   const [eventsByType, setEventsByType] = React.useState<EventTypeStat[]>([]);
   const [recentEvents, setRecentEvents] = React.useState<DashboardEvent[]>([]);
-  const [vehiclePositions, setVehiclePositions] = React.useState<
-    VehiclePosition[]
-  >([]);
+  const [vehiclePositions, setVehiclePositions] = React.useState<VehiclePosition[]>([]);
   const [telemetry, setTelemetry] = React.useState<TelemetrySummaryEntry[]>([]);
-  const [loading, setLoading] = React.useState(true);
+
+  const [statsLoading, setStatsLoading] = React.useState(true);
+  const [eventsByTypeLoading, setEventsByTypeLoading] = React.useState(true);
+  const [recentEventsLoading, setRecentEventsLoading] = React.useState(true);
+  const [vehiclePositionsLoading, setVehiclePositionsLoading] = React.useState(true);
+  const [telemetryLoading, setTelemetryLoading] = React.useState(true);
 
   const [dateRange, setDateRange] = React.useState<DateRange>(() => {
     const now = new Date();
@@ -421,40 +594,40 @@ export default function DashboardPage() {
   const formatDateParam = (d: Date) => d.toISOString();
 
   React.useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const from = formatDateParam(dateRange.from);
-        const to = formatDateParam(dateRange.to);
-        const [s, ebt, re, vp, ts] = await Promise.allSettled([
-          api.dashboard.stats(from, to),
-          api.dashboard.eventsByType(from, to),
-          api.dashboard.recentEvents(15, from, to),
-          api.dashboard.vehiclePositions(),
-          api.dashboard.telemetrySummary(),
-        ]);
+    const from = formatDateParam(dateRange.from);
+    const to = formatDateParam(dateRange.to);
 
-        if (s.status === "fulfilled") setStats(s.value);
-        if (ebt.status === "fulfilled") setEventsByType(ebt.value);
-        if (re.status === "fulfilled") setRecentEvents(re.value as DashboardEvent[]);
-        if (vp.status === "fulfilled") setVehiclePositions(vp.value);
-        if (ts.status === "fulfilled") setTelemetry(ts.value);
-      } catch (err) {
-        toast.error("Failed to load dashboard data");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    setStatsLoading(true);
+    setEventsByTypeLoading(true);
+    setRecentEventsLoading(true);
+    setVehiclePositionsLoading(true);
+    setTelemetryLoading(true);
+
+    api.dashboard.stats(from, to)
+      .then(setStats)
+      .catch(() => toast.error("Failed to load stats"))
+      .finally(() => setStatsLoading(false));
+
+    api.dashboard.eventsByType(from, to)
+      .then(setEventsByType)
+      .catch(() => toast.error("Failed to load events by type"))
+      .finally(() => setEventsByTypeLoading(false));
+
+    api.dashboard.recentEvents(15, from, to)
+      .then((data) => setRecentEvents(data as DashboardEvent[]))
+      .catch(() => toast.error("Failed to load recent events"))
+      .finally(() => setRecentEventsLoading(false));
+
+    api.dashboard.vehiclePositions()
+      .then(setVehiclePositions)
+      .catch(() => toast.error("Failed to load vehicle positions"))
+      .finally(() => setVehiclePositionsLoading(false));
+
+    api.dashboard.telemetrySummary()
+      .then(setTelemetry)
+      .catch(() => toast.error("Failed to load telemetry"))
+      .finally(() => setTelemetryLoading(false));
   }, [dateRange]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -468,56 +641,53 @@ export default function DashboardPage() {
 
       {/* KPI Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total Vehicles"
-          value={stats?.totalVehicles ?? 0}
-          icon={Car}
-          color="bg-blue-600"
-        />
-        <StatCard
-          label="Active Drivers"
-          value={stats?.totalDevices ?? 0}
-          icon={Radio}
-          color="bg-green-600"
-        />
-        <StatCard
-          label="Events Today"
-          value={stats?.eventsToday ?? 0}
-          icon={AlertTriangle}
-          color="bg-orange-600"
-        />
-        <StatCard
-          label="Unacknowledged"
-          value={stats?.unacknowledgedEvents ?? 0}
-          icon={Users}
-          color="bg-red-600"
-        />
+        {statsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
+        ) : (
+          <>
+            <StatCard label="Total Vehicles" value={stats?.totalVehicles ?? 0} icon={Car} color="bg-blue-600" />
+            <StatCard label="Active Drivers" value={stats?.totalDevices ?? 0} icon={Radio} color="bg-green-600" />
+            <StatCard label="Events in Period" value={stats?.eventsToday ?? 0} icon={AlertTriangle} color="bg-orange-600" />
+            <StatCard label="Unacknowledged" value={stats?.unacknowledgedEvents ?? 0} icon={Users} color="bg-red-600" />
+          </>
+        )}
       </div>
 
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <VehicleStatusChart stats={stats ?? {
-            totalVehicles: 0,
-            activeVehicles: 0,
-            inactiveVehicles: 0,
-            maintenanceVehicles: 0,
-            totalDevices: 0,
-            totalEvents: 0,
-            unacknowledgedEvents: 0,
-            eventsToday: 0,
-          }} />
+          {statsLoading ? (
+            <VehicleStatusChartSkeleton />
+          ) : (
+            <VehicleStatusChart stats={stats ?? EMPTY_STATS} />
+          )}
         </div>
-        <EventsByTypeChart data={eventsByType} />
+        {eventsByTypeLoading ? (
+          <EventsByTypeChartSkeleton />
+        ) : (
+          <EventsByTypeChart data={eventsByType} />
+        )}
       </div>
 
       {/* Recent Events */}
-      <RecentEventsTable events={recentEvents} />
+      {recentEventsLoading ? (
+        <RecentEventsTableSkeleton />
+      ) : (
+        <RecentEventsTable events={recentEvents} />
+      )}
 
       {/* Fleet Map + Telemetry */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <VehicleMap positions={vehiclePositions} />
-        <TelemetryTable data={telemetry.slice(0, 10)} />
+        {vehiclePositionsLoading ? (
+          <VehicleMapSkeleton />
+        ) : (
+          <VehicleMap positions={vehiclePositions} />
+        )}
+        {telemetryLoading ? (
+          <TelemetryTableSkeleton />
+        ) : (
+          <TelemetryTable data={telemetry.slice(0, 10)} />
+        )}
       </div>
     </div>
   );
