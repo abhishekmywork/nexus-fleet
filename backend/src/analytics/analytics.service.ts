@@ -27,9 +27,13 @@ export class AnalyticsService {
   ) {}
 
   private tenantCondSql(user: AuthenticatedUser, alias: string): string {
-    return user.isSuperUser || !user.tenantId
+    const tenantCond = user.isSuperUser || !user.tenantId
       ? '1=1'
       : `${alias}."tenantId" = $1`;
+    if (alias === 'v') {
+      return `${tenantCond} AND ${alias}."deletedAt" IS NULL`;
+    }
+    return tenantCond;
   }
 
   private tenantVal(user: AuthenticatedUser): string | null {
@@ -90,14 +94,14 @@ export class AnalyticsService {
     ]);
 
     const activeDeviceCount = await this.devices.query(
-      `SELECT COUNT(*)::int AS "count" FROM gps_devices d INNER JOIN vehicles v ON v.id = d."vehicleId" WHERE ${tCond} ${vCond}`,
+      `SELECT COUNT(*)::int AS "count" FROM gps_devices d INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL WHERE ${tCond} ${vCond}`,
       countParams,
     );
 
     const readingsInPeriod = await this.readings.query(
       `SELECT COUNT(*)::int AS "count" FROM gps_readings r
        INNER JOIN gps_devices d ON d.id = r."deviceId"
-       INNER JOIN vehicles v ON v.id = d."vehicleId"
+       INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
        WHERE ${tCond} AND r."timestamp" >= $${countParams.length + 1} AND r."timestamp" <= $${countParams.length + 2} ${vCond}`,
       [...countParams, range.start, range.end],
     );
@@ -105,7 +109,7 @@ export class AnalyticsService {
     const vehiclesWithReadings = await this.readings.query(
       `SELECT COUNT(DISTINCT v.id)::int AS "count" FROM gps_readings r
        INNER JOIN gps_devices d ON d.id = r."deviceId"
-       INNER JOIN vehicles v ON v.id = d."vehicleId"
+       INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
        WHERE ${tCond} AND r."timestamp" >= $${countParams.length + 1} AND r."timestamp" <= $${countParams.length + 2} ${vCond}`,
       [...countParams, range.start, range.end],
     );
@@ -117,7 +121,7 @@ export class AnalyticsService {
     const distanceResult = await this.readings.query(
       `SELECT SUM(r."odometerKm") AS "total" FROM gps_readings r
        INNER JOIN gps_devices d ON d.id = r."deviceId"
-       INNER JOIN vehicles v ON v.id = d."vehicleId"
+       INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
        WHERE ${tCond} AND r."timestamp" >= $${countParams.length + 1} AND r."timestamp" <= $${countParams.length + 2} ${vCond}`,
       [...countParams, range.start, range.end],
     );
@@ -125,7 +129,7 @@ export class AnalyticsService {
     const avgSpeedResult = await this.readings.query(
       `SELECT AVG(r.speed) AS "avg" FROM gps_readings r
        INNER JOIN gps_devices d ON d.id = r."deviceId"
-       INNER JOIN vehicles v ON v.id = d."vehicleId"
+       INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
        WHERE ${tCond} AND r."timestamp" >= $${countParams.length + 1} AND r."timestamp" <= $${countParams.length + 2}
        AND r.speed IS NOT NULL ${vCond}`,
       [...countParams, range.start, range.end],
@@ -134,7 +138,7 @@ export class AnalyticsService {
     const totalEvents = await this.events.query(
       `SELECT COUNT(*)::int AS "count" FROM events e
        INNER JOIN gps_devices d ON d.id = e."deviceId"
-       INNER JOIN vehicles v ON v.id = d."vehicleId"
+       INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
        WHERE ${tCond} AND e."startedAt" >= $${countParams.length + 1} AND e."startedAt" <= $${countParams.length + 2} ${vCond}`,
       [...countParams, range.start, range.end],
     );
@@ -174,7 +178,7 @@ export class AnalyticsService {
 
     if (hasVehicle) {
       joinParts.push('INNER JOIN gps_devices d ON d.id = e."deviceId"');
-      joinParts.push('INNER JOIN vehicles v ON v.id = d."vehicleId"');
+      joinParts.push('INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL AND v."deletedAt" IS NULL');
       whereParts.push(`AND v.id = $${params.length + 1}`);
       params.push(vehicleId);
     }
@@ -236,7 +240,7 @@ export class AnalyticsService {
         COUNT(*)::int AS "count"
       FROM gps_readings r
       INNER JOIN gps_devices d ON d.id = r."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd}
       AND r.speed IS NOT NULL ${vCond}
       GROUP BY "range"
@@ -254,7 +258,7 @@ export class AnalyticsService {
         r.longitude::float AS "longitude"
       FROM gps_readings r
       INNER JOIN gps_devices d ON d.id = r."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd}
       AND r.speed IS NOT NULL ${vCond}
       ORDER BY r.speed DESC
@@ -268,7 +272,7 @@ export class AnalyticsService {
         ROUND(AVG(r.speed)::numeric, 2)::float AS "avgSpeed"
       FROM gps_readings r
       INNER JOIN gps_devices d ON d.id = r."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd}
       AND r.speed IS NOT NULL ${vCond}
       GROUP BY v.id, v."plateNumber"
@@ -324,7 +328,7 @@ export class AnalyticsService {
           LAG(r."timestamp") OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp") AS prev_ts
         FROM gps_readings r
         INNER JOIN gps_devices d ON d.id = r."deviceId"
-        INNER JOIN vehicles v ON v.id = d."vehicleId"
+        INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
         WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd} ${vCond}
       )
       SELECT
@@ -352,7 +356,7 @@ export class AnalyticsService {
           LAG(r."timestamp") OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp") AS prev_ts
         FROM gps_readings r
         INNER JOIN gps_devices d ON d.id = r."deviceId"
-        INNER JOIN vehicles v ON v.id = d."vehicleId"
+        INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
         WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd} ${vCond}
       ),
       stoppage_groups AS (
@@ -373,7 +377,7 @@ export class AnalyticsService {
         MAX(sg."timestamp")::text AS "endTime"
       FROM stoppage_groups sg
       INNER JOIN gps_devices d ON d.id = sg."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE sg.grp IN (
         SELECT grp FROM stoppage_groups WHERE idle_minutes > 0 GROUP BY grp HAVING SUM(idle_minutes) > 5
       )
@@ -391,7 +395,7 @@ export class AnalyticsService {
           LAG(r."timestamp") OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp") AS prev_ts
         FROM gps_readings r
         INNER JOIN gps_devices d ON d.id = r."deviceId"
-        INNER JOIN vehicles v ON v.id = d."vehicleId"
+        INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
         WHERE ${tCond} AND r."timestamp" >= ${tsStart} AND r."timestamp" <= ${tsEnd} ${vCond}
       )
       SELECT
@@ -452,7 +456,7 @@ export class AnalyticsService {
         SUM(CASE WHEN e."eventType" = 'GEOFENCE_OUT' THEN 1 ELSE 0 END)::int AS "exitCount"
       FROM events e
       INNER JOIN gps_devices d ON d.id = e."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       LEFT JOIN geofences gf ON gf.id = e.metadata->>'geofenceId'
       WHERE ${tCond}
         AND e."eventType" IN ('GEOFENCE_IN', 'GEOFENCE_OUT')
@@ -491,7 +495,7 @@ export class AnalyticsService {
         COUNT(*)::int AS "exitCount"
       FROM events e
       INNER JOIN gps_devices d ON d.id = e."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond}
         AND e."eventType" = 'GEOFENCE_OUT'
         AND e."startedAt" >= ${tsStart}
@@ -543,7 +547,7 @@ export class AnalyticsService {
           dr."lastName",
           e."eventType"
         FROM drivers dr
-        INNER JOIN vehicles v ON v.id = dr."vehicleId"
+        INNER JOIN vehicles v ON v.id = dr."vehicleId" AND v."deletedAt" IS NULL
         INNER JOIN gps_devices dev ON dev."vehicleId" = v.id
         INNER JOIN events e ON e."deviceId" = dev.id
         WHERE ${tCond}
@@ -611,7 +615,7 @@ export class AnalyticsService {
     const offlineCount = await this.devices.query(`
       SELECT COUNT(DISTINCT d.id)::int AS "count"
       FROM gps_devices d
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond} ${vCond}
         AND NOT EXISTS (
           SELECT 1 FROM gps_readings r
@@ -624,7 +628,7 @@ export class AnalyticsService {
       SELECT COUNT(DISTINCT r."deviceId")::int AS "count"
       FROM gps_readings r
       INNER JOIN gps_devices d ON d.id = r."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond}
         AND r."timestamp" >= ${tsStart}
         AND r."timestamp" <= ${tsEnd}
@@ -637,7 +641,7 @@ export class AnalyticsService {
       SELECT ROUND(AVG(r."gsmSignal")::numeric, 2)::float AS "avgSignal"
       FROM gps_readings r
       INNER JOIN gps_devices d ON d.id = r."deviceId"
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       WHERE ${tCond}
         AND r."timestamp" >= ${tsStart}
         AND r."timestamp" <= ${tsEnd}
@@ -654,7 +658,7 @@ export class AnalyticsService {
         latest."batteryV",
         latest."gsmSignal"
       FROM gps_devices d
-      INNER JOIN vehicles v ON v.id = d."vehicleId"
+      INNER JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
       LEFT JOIN LATERAL (
         SELECT
           r."timestamp"::text AS "lastSeen",
