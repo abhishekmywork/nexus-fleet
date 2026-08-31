@@ -10,7 +10,7 @@ export const DEFAULT_GLOBAL_SETTINGS = [
   { key: 'global.idleThresholdMinutes', value: '10', category: 'event_defaults', description: 'Idle alert threshold (minutes)' },
   { key: 'global.stoppageThresholdMinutes', value: '5', category: 'event_defaults', description: 'Stoppage alert threshold (minutes)' },
   { key: 'global.offlineThresholdMinutes', value: '30', category: 'event_defaults', description: 'Device offline threshold (minutes)' },
-  { key: 'global.geofenceBufferMeters', value: '50', category: 'event_defaults', description: 'Geofence buffer zone (meters)' },
+  { key: 'global.geofenceBufferMeters', value: '10', category: 'event_defaults', description: 'Geofence exit buffer zone (meters)' },
   { key: 'global.eventCooldownMinutes', value: '5', category: 'event_defaults', description: 'Instant event cooldown (minutes)' },
   { key: 'global.dataRetentionDays', value: '90', category: 'system', description: 'Audit log retention (days, 0 = forever)' },
   { key: 'contact.name', value: 'MST-VTS Support', category: 'contact', description: 'Contact person or department name' },

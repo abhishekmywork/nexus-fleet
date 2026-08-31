@@ -37,7 +37,7 @@ export class TenantSettingsService {
         this.globalSettings.getNumeric('global.idleThresholdMinutes', 10),
         this.globalSettings.getNumeric('global.stoppageThresholdMinutes', 5),
         this.globalSettings.getNumeric('global.offlineThresholdMinutes', 30),
-        this.globalSettings.getNumeric('global.geofenceBufferMeters', 50),
+        this.globalSettings.getNumeric('global.geofenceBufferMeters', 10),
         this.globalSettings.getNumeric('global.eventCooldownMinutes', 5),
       ]);
 

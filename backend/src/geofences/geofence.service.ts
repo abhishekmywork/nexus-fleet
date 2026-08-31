@@ -166,6 +166,69 @@ export class GeofenceService {
   }
 
   /**
+   * Calculate shortest distance from a point to the geofence boundary.
+   * Negative = inside (distance to nearest edge), positive = outside.
+   */
+  distanceFromBoundary(lat: number, lon: number, geofence: Geofence): number {
+    if (geofence.type === 'circle') {
+      return this.distanceFromCircle(lat, lon, geofence);
+    }
+    if (geofence.type === 'polygon') {
+      return this.distanceFromPolygon(lat, lon, geofence);
+    }
+    return 0;
+  }
+
+  private distanceFromCircle(lat: number, lon: number, geofence: Geofence): number {
+    const center = geofence.coordinates.center;
+    if (!center) return 0;
+    const dist = this.haversineDistance(lat, lon, center.lat, center.lon);
+    return dist - (geofence.coordinates.radiusMeters ?? 0);
+  }
+
+  private distanceFromPolygon(lat: number, lon: number, geofence: Geofence): number {
+    const points = geofence.coordinates.points;
+    if (!Array.isArray(points) || points.length < 3) return 0;
+
+    const inside = this.raycasting(lat, lon, points);
+
+    let minDist = Infinity;
+    const n = points.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const dist = this.pointToSegmentDistance(
+        lat, lon,
+        points[i].lat, points[i].lon,
+        points[j].lat, points[j].lon,
+      );
+      if (dist < minDist) minDist = dist;
+    }
+
+    return inside ? -minDist : minDist;
+  }
+
+  /**
+   * Haversine distance from point (px,py) to the closest point on segment (ax,ay)-(bx,by).
+   */
+  private pointToSegmentDistance(
+    px: number, py: number,
+    ax: number, ay: number,
+    bx: number, by: number,
+  ): number {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return this.haversineDistance(px, py, ax, ay);
+
+    let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+
+    const projLat = ay + t * dy;
+    const projLon = ax + t * dx;
+    return this.haversineDistance(px, py, projLat, projLon);
+  }
+
+  /**
    * Haversine distance in meters between two lat/lon points.
    */
   private haversineDistance(

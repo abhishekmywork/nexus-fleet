@@ -105,19 +105,34 @@ export class EventDetectorService {
     const prevGeofenceId = state?.inGeofenceId ?? null;
     const prevGeofenceName = state?.inGeofenceName ?? null;
 
+    const bufferMeters = await this.tenantSettingsService.resolveWithFallback(
+      input.tenantId,
+      'geofenceBufferMeters',
+      'global.geofenceBufferMeters',
+      10,
+    );
+
     let isInsideAny = false;
-    let currentGeofence: { id: string; name: string } | null = null;
+    let closestDistance = Infinity;
+    let closestGeofence: { id: string; name: string } | null = null;
+
     for (const gf of geofences) {
-      if (this.geofenceService.isPointInside(input.latitude, input.longitude, gf)) {
+      const distance = this.geofenceService.distanceFromBoundary(
+        input.latitude,
+        input.longitude,
+        gf,
+      );
+      if (distance < 0) {
         isInsideAny = true;
-        currentGeofence = { id: gf.id, name: gf.name };
-        break;
+      }
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestGeofence = { id: gf.id, name: gf.name };
       }
     }
 
-    // Transition detection
-    if (wasInside && !isInsideAny) {
-      // Was inside → now outside = GEOFENCE_OUT
+    if (wasInside && !isInsideAny && closestDistance > bufferMeters) {
+      // Was inside → now outside by more than buffer → GEOFENCE_OUT
       await this.createEvent({
         deviceId: input.deviceId,
         eventType: 'GEOFENCE_OUT',
@@ -128,12 +143,21 @@ export class EventDetectorService {
           ruleName: 'Geofence Exit',
           geofenceId: prevGeofenceId,
           geofenceName: prevGeofenceName ?? 'Unknown',
+          bufferMeters,
+          distanceFromBoundary: Math.round(closestDistance),
         },
         tenantId: input.tenantId,
         startedAt: new Date(ts),
       });
+
+      if (state) {
+        state.inGeofence = false;
+        state.inGeofenceId = null;
+        state.inGeofenceName = null;
+        await this.stateService.setState(input.deviceId, state);
+      }
     } else if (!wasInside && isInsideAny) {
-      // Was outside → now inside = GEOFENCE_IN
+      // Was outside → now inside → GEOFENCE_IN
       await this.createEvent({
         deviceId: input.deviceId,
         eventType: 'GEOFENCE_IN',
@@ -142,21 +166,27 @@ export class EventDetectorService {
         speed: input.speed ?? null,
         metadata: {
           ruleName: 'Geofence Entry',
-          geofenceId: currentGeofence?.id ?? null,
-          geofenceName: currentGeofence?.name ?? 'Unknown',
+          geofenceId: closestGeofence?.id ?? null,
+          geofenceName: closestGeofence?.name ?? 'Unknown',
         },
         tenantId: input.tenantId,
         startedAt: new Date(ts),
       });
-    }
 
-    // Update state
-    if (state) {
-      state.inGeofence = isInsideAny;
-      state.inGeofenceId = currentGeofence?.id ?? null;
-      state.inGeofenceName = currentGeofence?.name ?? null;
+      if (state) {
+        state.inGeofence = true;
+        state.inGeofenceId = closestGeofence?.id ?? null;
+        state.inGeofenceName = closestGeofence?.name ?? null;
+        await this.stateService.setState(input.deviceId, state);
+      }
+    } else if (isInsideAny && state) {
+      // Still inside — update which geofence we're in
+      state.inGeofence = true;
+      state.inGeofenceId = closestGeofence?.id ?? null;
+      state.inGeofenceName = closestGeofence?.name ?? null;
       await this.stateService.setState(input.deviceId, state);
     }
+    // else: was outside, still outside — no state change needed
   }
 
   // ─── RULE EVALUATION ──────────────────────────────────────────────

@@ -28,7 +28,7 @@ export class TenantSetting {
   @Column({ type: 'int', default: 30 })
   offlineThresholdMinutes: number;
 
-  @Column({ type: 'int', default: 50 })
+  @Column({ type: 'int', default: 10 })
   geofenceBufferMeters: number;
 
   @Column({ type: 'int', default: 5 })
