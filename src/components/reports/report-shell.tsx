@@ -120,6 +120,9 @@ export function ReportShell({
       from: `${from}T00:00:00`,
       to: `${to}T23:59:59`,
     };
+    if (selectedVehicleId && selectedVehicleId !== "all" && meta.needsVehicle) {
+      params.vehicleId = selectedVehicleId;
+    }
     if (deviceId && meta.needsVehicle) {
       params.deviceId = deviceId;
     }

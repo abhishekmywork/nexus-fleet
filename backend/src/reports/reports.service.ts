@@ -64,19 +64,22 @@ export class ReportsService {
     return Number(raw);
   }
 
-  private async getDevicesForUser(user: AuthenticatedUser) {
+  private async getDevicesForUser(user: AuthenticatedUser, vehicleId?: string) {
     const qb = this.devices
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.vehicle', 'v');
     if (!user.isSuperUser && user.tenantId) {
       qb.where('d.tenantId = :tenantId', { tenantId: user.tenantId });
     }
+    if (vehicleId) {
+      qb.andWhere('d.vehicleId = :vehicleId', { vehicleId });
+    }
     return qb.getMany();
   }
 
   // 1. Vehicle Trip Report
   async vehicleTripReport(user: AuthenticatedUser, q: ReportQuery) {
-    const devices = await this.getDevicesForUser(user);
+    const devices = await this.getDevicesForUser(user, q.vehicleId);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
@@ -169,7 +172,7 @@ export class ReportsService {
 
   // 2. Daily Summary — SQL aggregation with earthdistance
   async dailySummaryReport(user: AuthenticatedUser, q: ReportQuery) {
-    const devices = await this.getDevicesForUser(user);
+    const devices = await this.getDevicesForUser(user, q.vehicleId);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
@@ -248,7 +251,7 @@ export class ReportsService {
 
   // 3. Speed Violation Report
   async speedViolationReport(user: AuthenticatedUser, q: ReportQuery) {
-    const devices = await this.getDevicesForUser(user);
+    const devices = await this.getDevicesForUser(user, q.vehicleId);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
@@ -279,15 +282,19 @@ export class ReportsService {
 
   // 4. Idle/Stoppage Report
   async idleReport(user: AuthenticatedUser, q: ReportQuery) {
-    const events = await this.events
+    const qb = this.events
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.device', 'd')
       .leftJoinAndSelect('d.vehicle', 'v')
       .where('e.eventType IN (:...types)', { types: ['IDLE', 'STOPPAGE'] })
       .andWhere('e.startedAt >= :from', { from: q.from })
       .andWhere('e.startedAt <= :to', { to: q.to })
-      .orderBy('e.startedAt', 'ASC')
-      .getMany();
+      .orderBy('e.startedAt', 'ASC');
+
+    if (q.deviceId) qb.andWhere('e.deviceId = :deviceId', { deviceId: q.deviceId });
+    if (q.vehicleId) qb.andWhere('d."vehicleId" = :vehicleId', { vehicleId: q.vehicleId });
+
+    const events = await qb.getMany();
 
     return events
       .filter((e) => {
@@ -324,6 +331,7 @@ export class ReportsService {
       .orderBy('e.startedAt', 'ASC');
 
     if (q.deviceId) qb.andWhere('e.deviceId = :deviceId', { deviceId: q.deviceId });
+    if (q.vehicleId) qb.andWhere('d."vehicleId" = :vehicleId', { vehicleId: q.vehicleId });
 
     const events = await qb.getMany();
     return events.map((e) => ({
@@ -350,6 +358,8 @@ export class ReportsService {
     if (q.geofenceId) {
       qb.andWhere("e.metadata->>'geofenceId' = :gfId", { gfId: q.geofenceId });
     }
+    if (q.deviceId) qb.andWhere('e.deviceId = :deviceId', { deviceId: q.deviceId });
+    if (q.vehicleId) qb.andWhere('d."vehicleId" = :vehicleId', { vehicleId: q.vehicleId });
 
     const events = await qb.getMany();
 
@@ -386,14 +396,18 @@ export class ReportsService {
 
   // 7. Geofence Summary
   async geofenceSummaryReport(user: AuthenticatedUser, q: ReportQuery) {
-    const events = await this.events
+    const qb = this.events
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.device', 'd')
       .leftJoinAndSelect('d.vehicle', 'v')
       .where("e.eventType = 'GEOFENCE_IN'")
       .andWhere('e.startedAt >= :from', { from: q.from })
-      .andWhere('e.startedAt <= :to', { to: q.to })
-      .getMany();
+      .andWhere('e.startedAt <= :to', { to: q.to });
+
+    if (q.deviceId) qb.andWhere('e.deviceId = :deviceId', { deviceId: q.deviceId });
+    if (q.vehicleId) qb.andWhere('d."vehicleId" = :vehicleId', { vehicleId: q.vehicleId });
+
+    const events = await qb.getMany();
 
     // Batch lookup geofence names for old events without geofenceName
     const geofenceIds = new Set<string>();
@@ -441,6 +455,7 @@ export class ReportsService {
 
     if (q.eventType) qb.andWhere('e.eventType = :eventType', { eventType: q.eventType });
     if (q.deviceId) qb.andWhere('e.deviceId = :deviceId', { deviceId: q.deviceId });
+    if (q.vehicleId) qb.andWhere('d."vehicleId" = :vehicleId', { vehicleId: q.vehicleId });
 
     const events = await qb.getMany();
     return events.map((e) => ({
@@ -460,6 +475,7 @@ export class ReportsService {
   // 9. Driver Activity — single SQL query (no N+1)
   async driverActivityReport(user: AuthenticatedUser, q: ReportQuery) {
     const driverFilter = q.driverId ? `AND dr.id = '${q.driverId}'` : '';
+    const vehicleFilter = q.vehicleId ? `AND v.id = '${q.vehicleId}'` : '';
     const useCorrected = await this.getCoordMode();
     const latE = this.latExpr(useCorrected, 'r');
     const lonE = this.lonExpr(useCorrected, 'r');
@@ -524,6 +540,7 @@ export class ReportsService {
       LEFT JOIN per_device pd ON pd."deviceId" = g.id
       WHERE 1=1
         ${driverFilter}
+        ${vehicleFilter}
       ORDER BY dr."firstName", dr."lastName"
     `, [q.from, q.to]);
 
@@ -539,7 +556,7 @@ export class ReportsService {
 
   // 10. Device Health — SQL aggregation
   async deviceHealthReport(user: AuthenticatedUser, q: ReportQuery) {
-    const devices = await this.getDevicesForUser(user);
+    const devices = await this.getDevicesForUser(user, q.vehicleId);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
@@ -588,7 +605,7 @@ export class ReportsService {
 
   // 11. Travel Distance Report — SQL aggregation with earthdistance
   async travelDistanceReport(user: AuthenticatedUser, q: ReportQuery) {
-    const devices = await this.getDevicesForUser(user);
+    const devices = await this.getDevicesForUser(user, q.vehicleId);
     const deviceIds = devices.map((d) => d.id);
     if (deviceIds.length === 0) return [];
 
