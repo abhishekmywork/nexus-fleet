@@ -143,13 +143,16 @@ export class ReportsService {
           const avgSpd = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
           const maxSpd = speeds.length ? Math.max(...speeds) : 0;
 
+          const roundedDist = Math.round(dist * 100) / 100;
+          if (roundedDist === 0) { tripStart = i; continue; }
+
           trips.push({
             plateNumber: plate,
             deviceId,
             startTime: start.timestamp,
             endTime: end.timestamp,
             durationSec: Math.round(dur),
-            distanceKm: Math.round(dist * 100) / 100,
+            distanceKm: roundedDist,
             avgSpeed: Math.round(avgSpd * 100) / 100,
             maxSpeed: Math.round(maxSpd * 100) / 100,
             startLat: this.pickCoord(start.latitude, start.latitudeCleaned, useCorrected),
