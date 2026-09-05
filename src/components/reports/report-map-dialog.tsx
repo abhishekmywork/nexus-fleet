@@ -52,6 +52,9 @@ export function ReportMapDialog({ data, columns, title, reportId }: ReportMapDia
         const step = row.points.length > 200 ? Math.ceil(row.points.length / 200) : 1;
         base.points = row.points.filter((_: any, i: number) => i % step === 0 || i === row.points.length - 1);
       }
+      if (Array.isArray(row.routeGeometry) && row.routeGeometry.length > 0) {
+        base.routeGeometry = row.routeGeometry;
+      }
       return base;
     });
 

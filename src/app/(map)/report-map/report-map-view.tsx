@@ -77,9 +77,14 @@ const MapRenderer = React.memo(function MapRenderer({ data }: { data: any[] }) {
       const plate = row.plateNumber ?? "Unknown";
 
       if (Array.isArray(row.points) && row.points.length >= 2) {
-        const trail = row.points
+        const rawTrail = row.points
           .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lon) }))
           .filter((p: google.maps.LatLngLiteral) => isFinite(p.lat) && isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0));
+
+        // Prefer OSRM road-snapped geometry when available
+        const trail = (Array.isArray(row.routeGeometry) && row.routeGeometry.length >= 2)
+          ? row.routeGeometry.filter((p: any) => isFinite(p.lat) && isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0))
+          : rawTrail;
 
         if (trail.length >= 2) {
           r.lines.push(
@@ -155,9 +160,13 @@ export default function ReportMapView() {
 
     for (const row of payload.data) {
       if (Array.isArray(row.points) && row.points.length >= 2) {
-        const trail = row.points
+        const rawTrail = row.points
           .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lon) }))
           .filter((p: any) => isFinite(p.lat) && isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0));
+
+        const trail = (Array.isArray(row.routeGeometry) && row.routeGeometry.length >= 2)
+          ? row.routeGeometry.filter((p: any) => isFinite(p.lat) && isFinite(p.lng) && (p.lat !== 0 || p.lng !== 0))
+          : rawTrail;
 
         if (trail.length >= 2) {
           allPts.push(...trail);

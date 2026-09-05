@@ -164,11 +164,39 @@ export class ReportsService {
               lon: this.pickCoord(s.longitude, s.longitudeCleaned, useCorrected),
               ts: s.timestamp,
             })),
+            routeGeometry: null as { lat: number; lng: number }[] | null,
           });
           tripStart = i;
         }
       }
     }
+
+    // Batch OSRM road-snapping for all trips
+    const OSRM_URL = process.env.OSRM_URL || 'http://osrm:5000';
+    const MAX_WAYPOINTS = 100;
+    await Promise.all(trips.map(async (trip) => {
+      if (!trip.points || trip.points.length < 2) return;
+      try {
+        let sampled = trip.points;
+        if (trip.points.length > MAX_WAYPOINTS) {
+          const step = Math.ceil((trip.points.length - 2) / (MAX_WAYPOINTS - 2));
+          sampled = [trip.points[0]];
+          for (let k = 1; k < trip.points.length - 1; k += step) {
+            sampled.push(trip.points[k]);
+          }
+          sampled.push(trip.points[trip.points.length - 1]);
+        }
+        const coords = sampled.map((p: any) => `${Number(p.lon).toFixed(6)},${Number(p.lat).toFixed(6)}`).join(';');
+        const url = `${OSRM_URL}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.code === 'Ok' && data.routes?.length > 0) {
+          trip.routeGeometry = data.routes[0].geometry.coordinates.map((c: number[]) => ({ lat: c[1], lng: c[0] }));
+        }
+      } catch {
+        // fallback: no road geometry, frontend uses straight lines
+      }
+    }));
 
     return trips.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }
