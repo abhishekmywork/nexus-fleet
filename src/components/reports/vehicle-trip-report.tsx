@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { fmtTimestampExport, formatDurationExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -19,17 +20,17 @@ function fmtTimestamp(val?: string): string {
 
 const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
-  { key: "startTime", label: "Start", render: (val) => fmtTimestamp(val) },
-  { key: "endTime", label: "End", render: (val) => fmtTimestamp(val) },
-  { key: "durationSec", label: "Duration", render: (val) => formatDuration(val) },
-  { key: "distanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
-  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
-  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "startTime", label: "Start", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "endTime", label: "End", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "durationSec", label: "Duration", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
+  { key: "distanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
+  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
   { key: "startLat", label: "Start Lat" },
   { key: "startLon", label: "Start Lon" },
   { key: "endLat", label: "End Lat" },
   { key: "endLon", label: "End Lon" },
-  { key: "points", label: "GPS Points", render: (val) => (Array.isArray(val) ? val.length : "—") },
+  { key: "points", label: "GPS Points", render: (val) => (Array.isArray(val) ? val.length : "—"), formatExport: (val) => Array.isArray(val) ? `${val.length} points` : "—" },
 ];
 
 const REPORT_ID = "vehicle-trips";

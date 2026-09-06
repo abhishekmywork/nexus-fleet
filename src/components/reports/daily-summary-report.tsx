@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { formatDurationExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -15,12 +16,12 @@ function formatDuration(sec?: number): string {
 
 const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
-  { key: "totalDistanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
-  { key: "movingTimeSec", label: "Moving Time", render: (val) => formatDuration(val) },
-  { key: "idleTimeSec", label: "Idle Time", render: (val) => formatDuration(val) },
-  { key: "stopTimeSec", label: "Stop Time", render: (val) => formatDuration(val) },
-  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
-  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "totalDistanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
+  { key: "movingTimeSec", label: "Moving Time", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
+  { key: "idleTimeSec", label: "Idle Time", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
+  { key: "stopTimeSec", label: "Stop Time", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
+  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
   { key: "stopCount", label: "Stops" },
   { key: "readingCount", label: "Readings" },
 ];

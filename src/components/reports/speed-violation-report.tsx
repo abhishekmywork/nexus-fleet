@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { fmtTimestampExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -12,9 +13,9 @@ function fmtTimestamp(val?: string): string {
 
 const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
-  { key: "timestamp", label: "Time", render: (val) => fmtTimestamp(val) },
-  { key: "speed", label: "Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
-  { key: "speedLimit", label: "Limit", render: (val) => val != null ? `${val} km/h` : "—" },
+  { key: "timestamp", label: "Time", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "speed", label: "Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "speedLimit", label: "Limit", render: (val) => val != null ? `${val} km/h` : "—", formatExport: (val) => val != null ? `${val} km/h` : "—" },
   { key: "latitude", label: "Lat" },
   { key: "longitude", label: "Lon" },
 ];

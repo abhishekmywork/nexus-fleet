@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { fmtTimestampExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -14,14 +15,14 @@ const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
   { key: "imei", label: "IMEI" },
   { key: "readingCount", label: "Readings" },
-  { key: "battery-min", label: "Battery Min", getValue: (row) => row.battery?.min, render: (val) => (val != null ? `${val}%` : "—") },
-  { key: "battery-max", label: "Battery Max", getValue: (row) => row.battery?.max, render: (val) => (val != null ? `${val}%` : "—") },
-  { key: "battery-avg", label: "Battery Avg", getValue: (row) => row.battery?.avg, render: (val) => (val != null ? `${val}%` : "—") },
-  { key: "signal-min", label: "Signal Min", getValue: (row) => row.signal?.min, render: (val) => (val != null ? `${val}` : "—") },
-  { key: "signal-max", label: "Signal Max", getValue: (row) => row.signal?.max, render: (val) => (val != null ? `${val}` : "—") },
-  { key: "signal-avg", label: "Signal Avg", getValue: (row) => row.signal?.avg, render: (val) => (val != null ? `${val}` : "—") },
-  { key: "firstReading", label: "First Reading", render: (val) => fmtTimestamp(val) },
-  { key: "lastReading", label: "Last Reading", render: (val) => fmtTimestamp(val) },
+  { key: "battery-min", label: "Battery Min", getValue: (row) => row.battery?.min, render: (val) => (val != null ? `${val}%` : "—"), formatExport: (val) => val != null ? `${val}%` : "—" },
+  { key: "battery-max", label: "Battery Max", getValue: (row) => row.battery?.max, render: (val) => (val != null ? `${val}%` : "—"), formatExport: (val) => val != null ? `${val}%` : "—" },
+  { key: "battery-avg", label: "Battery Avg", getValue: (row) => row.battery?.avg, render: (val) => (val != null ? `${val}%` : "—"), formatExport: (val) => val != null ? `${val}%` : "—" },
+  { key: "signal-min", label: "Signal Min", getValue: (row) => row.signal?.min, render: (val) => (val != null ? `${val}` : "—"), formatExport: (val) => val != null ? String(val) : "—" },
+  { key: "signal-max", label: "Signal Max", getValue: (row) => row.signal?.max, render: (val) => (val != null ? `${val}` : "—"), formatExport: (val) => val != null ? String(val) : "—" },
+  { key: "signal-avg", label: "Signal Avg", getValue: (row) => row.signal?.avg, render: (val) => (val != null ? `${val}` : "—"), formatExport: (val) => val != null ? String(val) : "—" },
+  { key: "firstReading", label: "First Reading", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "lastReading", label: "Last Reading", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
 ];
 
 const REPORT_ID = "device-health";

@@ -8,11 +8,11 @@ import autoTable from "jspdf-autotable";
 
 interface ExportToolbarProps {
   data: any[];
-  columns: { key: string; label: string; getValue?: (row: any) => any }[];
+  columns: { key: string; label: string; getValue?: (row: any) => any; formatExport?: (val: any, row: any) => string }[];
   fileName: string;
 }
 
-function formatValue(val: any): string {
+function fallbackFormat(val: any): string {
   if (val === null || val === undefined) return "";
   if (typeof val === "boolean") return val ? "Yes" : "No";
   if (Array.isArray(val)) return `${val.length} points`;
@@ -20,12 +20,17 @@ function formatValue(val: any): string {
   return String(val);
 }
 
+function cellValue(col: any, row: any): string {
+  const raw = col.getValue ? col.getValue(row) : row[col.key];
+  return col.formatExport ? col.formatExport(raw, row) : fallbackFormat(raw);
+}
+
 export function ExportToolbar({ data, columns, fileName }: ExportToolbarProps) {
   const exportExcel = () => {
     const rows = data.map((row) => {
       const obj: Record<string, any> = {};
       columns.forEach((col) => {
-        obj[col.label] = formatValue(col.getValue ? col.getValue(row) : row[col.key]);
+        obj[col.label] = cellValue(col, row);
       });
       return obj;
     });
@@ -40,7 +45,7 @@ export function ExportToolbar({ data, columns, fileName }: ExportToolbarProps) {
     const rows = data
       .map((row) =>
         columns
-          .map((col) => `"${formatValue(col.getValue ? col.getValue(row) : row[col.key]).replace(/"/g, '""')}"`)
+          .map((col) => `"${cellValue(col, row).replace(/"/g, '""')}"`)
           .join(",")
       )
       .join("\n");
@@ -60,7 +65,7 @@ export function ExportToolbar({ data, columns, fileName }: ExportToolbarProps) {
     const doc = new jsPDF({ orientation: "landscape" });
     autoTable(doc, {
       head: [columns.map((c) => c.label)],
-      body: data.map((row) => columns.map((col) => formatValue(col.getValue ? col.getValue(row) : row[col.key]))),
+      body: data.map((row) => columns.map((col) => cellValue(col, row))),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [37, 99, 235] },
     });

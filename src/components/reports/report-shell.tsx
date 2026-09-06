@@ -55,6 +55,7 @@ export interface Column {
   label: string;
   getValue?: (row: any) => any;
   render?: (val: any, row: any) => React.ReactNode;
+  formatExport?: (val: any, row: any) => string;
 }
 
 export interface ReportMeta {

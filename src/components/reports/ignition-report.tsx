@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
 import { Badge } from "@/components/ui/badge";
+import { fmtTimestampExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -13,8 +14,8 @@ function fmtTimestamp(val?: string): string {
 
 const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
-  { key: "eventType", label: "Event", render: (val) => <Badge variant={val === "IGNITION_ON" ? "default" : "secondary"}>{val}</Badge> },
-  { key: "timestamp", label: "Time", render: (val) => fmtTimestamp(val) },
+  { key: "eventType", label: "Event", render: (val) => <Badge variant={val === "IGNITION_ON" ? "default" : "secondary"}>{val}</Badge>, formatExport: (val) => String(val ?? "") },
+  { key: "timestamp", label: "Time", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
   { key: "latitude", label: "Lat" },
   { key: "longitude", label: "Lon" },
 ];

@@ -10,7 +10,7 @@ const columns: Column[] = [
   { key: "geofenceName", label: "Geofence" },
   { key: "totalVisits", label: "Visits" },
   { key: "uniqueVehicles", label: "Unique Vehicles" },
-  { key: "timestamps", label: "Timestamps", render: (val) => { if (!val || !Array.isArray(val) || val.length === 0) return "—"; return `${val.length} event${val.length !== 1 ? "s" : ""}`; }, getValue: (row) => row.timestamps },
+  { key: "timestamps", label: "Timestamps", render: (val) => { if (!val || !Array.isArray(val) || val.length === 0) return "—"; return `${val.length} event${val.length !== 1 ? "s" : ""}`; }, getValue: (row) => row.timestamps, formatExport: (val) => { if (!val || !Array.isArray(val) || val.length === 0) return "—"; return `${val.length} event${val.length !== 1 ? "s" : ""}`; } },
 ];
 
 const REPORT_ID = "geofence-summary";

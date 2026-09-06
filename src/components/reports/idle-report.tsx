@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { fmtTimestampExport, formatDurationExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -20,9 +21,9 @@ function fmtTimestamp(val?: string): string {
 const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
   { key: "eventType", label: "Type" },
-  { key: "startedAt", label: "Start", render: (val) => fmtTimestamp(val) },
-  { key: "endedAt", label: "End", render: (val) => fmtTimestamp(val) },
-  { key: "durationSec", label: "Duration", render: (val) => formatDuration(val) },
+  { key: "startedAt", label: "Start", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "endedAt", label: "End", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "durationSec", label: "Duration", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
   { key: "latitude", label: "Lat" },
   { key: "longitude", label: "Lon" },
 ];

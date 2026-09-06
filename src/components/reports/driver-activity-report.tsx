@@ -11,8 +11,8 @@ const columns: Column[] = [
   { key: "licenseNumber", label: "License" },
   { key: "plateNumber", label: "Plate" },
   { key: "totalTrips", label: "Trips" },
-  { key: "totalDistanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
-  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "totalDistanceKm", label: "Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
+  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
 ];
 
 const REPORT_ID = "driver-activity";

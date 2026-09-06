@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { ReportShell, Column } from "./report-shell";
+import { fmtTimestampExport, formatDurationExport } from "./format-helpers";
 import type { SearchableSelectOption } from "@/components/common/searchable-select";
 import type { ReportMeta } from "./report-shell";
 
@@ -21,13 +22,13 @@ const columns: Column[] = [
   { key: "plateNumber", label: "Plate" },
   { key: "make", label: "Make" },
   { key: "model", label: "Model" },
-  { key: "totalDistanceKm", label: "Total Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
+  { key: "totalDistanceKm", label: "Total Distance", render: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km` : "—" },
   { key: "tripCount", label: "Trips" },
-  { key: "movingTimeSec", label: "Moving Time", render: (val) => formatDuration(val) },
-  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
-  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
-  { key: "firstSeen", label: "First Seen", render: (val) => fmtTimestamp(val) },
-  { key: "lastSeen", label: "Last Seen", render: (val) => fmtTimestamp(val) },
+  { key: "movingTimeSec", label: "Moving Time", render: (val) => formatDuration(val), formatExport: (val) => formatDurationExport(val) },
+  { key: "avgSpeed", label: "Avg Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "maxSpeed", label: "Max Speed", render: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—", formatExport: (val) => val != null ? `${Number(val).toFixed(2)} km/h` : "—" },
+  { key: "firstSeen", label: "First Seen", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
+  { key: "lastSeen", label: "Last Seen", render: (val) => fmtTimestamp(val), formatExport: (val) => fmtTimestampExport(val) },
   { key: "startLat", label: "Start Lat" },
   { key: "startLon", label: "Start Lon" },
   { key: "endLat", label: "End Lat" },
