@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
+import { latestReadingsByDevice } from '../gps-devices/latest-readings';
 import { Event, EventType } from '../events/event.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
@@ -231,21 +232,7 @@ export class DashboardService {
       }));
     }
 
-    const latestReadings = await this.readings
-      .createQueryBuilder('r')
-      .select('r.*')
-      .addSelect(
-        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
-      )
-      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
-      .getRawMany<Record<string, any>>();
-
-    const latestByDevice = new Map<string, Record<string, any>>();
-    for (const row of latestReadings) {
-      if (Number(row.rn) === 1) {
-        latestByDevice.set(row.deviceId, row);
-      }
-    }
+    const latestByDevice = await latestReadingsByDevice(this.readings, deviceIds);
 
     return vehicles.map((v) => {
       const latest = v.gpsDevice ? latestByDevice.get(v.gpsDevice.id) : null;
@@ -285,21 +272,7 @@ export class DashboardService {
 
     const deviceIds = devices.map((d) => d.id);
 
-    const latestReadings = await this.readings
-      .createQueryBuilder('r')
-      .select('r.*')
-      .addSelect(
-        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
-      )
-      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
-      .getRawMany<Record<string, any>>();
-
-    const latestByDevice = new Map<string, Record<string, any>>();
-    for (const row of latestReadings) {
-      if (Number(row.rn) === 1) {
-        latestByDevice.set(row.deviceId, row);
-      }
-    }
+    const latestByDevice = await latestReadingsByDevice(this.readings, deviceIds);
 
     return devices.map((device) => {
       const latest = latestByDevice.get(device.id);

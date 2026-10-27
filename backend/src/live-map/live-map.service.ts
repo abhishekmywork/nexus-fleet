@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
+import { latestReadingsByDevice } from '../gps-devices/latest-readings';
 import { Tenant } from '../tenants/tenant.entity';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
@@ -78,21 +79,7 @@ export class LiveMapService {
 
     const deviceIds = devices.map((d) => d.id);
 
-    const latestReadings = await this.readings
-      .createQueryBuilder('r')
-      .select('r.*')
-      .addSelect(
-        `ROW_NUMBER() OVER (PARTITION BY r."deviceId" ORDER BY r."timestamp" DESC) as rn`,
-      )
-      .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
-      .getRawMany<{ rn: string } & Record<string, any>>();
-
-    const latestByDevice = new Map<string, Record<string, any>>();
-    for (const row of latestReadings) {
-      if (Number(row.rn) === 1) {
-        latestByDevice.set(row.deviceId, row);
-      }
-    }
+    const latestByDevice = await latestReadingsByDevice(this.readings, deviceIds);
 
     const deviceMap = new Map<string, GPSDevice>();
     for (const d of devices) deviceMap.set(d.id, d);
