@@ -73,22 +73,11 @@ export class TelemetryService {
 
     const latestPerDevice = await this.readings
       .createQueryBuilder('r')
-      .innerJoin(
-        (sub) => {
-          return sub
-            .select('r2.deviceId', 'deviceId')
-            .addSelect('MAX(r2.timestamp)', 'maxTimestamp')
-            .from(GPSReading, 'r2')
-            .groupBy('r2.deviceId');
-        },
-        'latest',
-        'r.deviceId = latest.deviceId AND r.timestamp = latest.maxTimestamp',
-      )
+      .distinctOn(['r.deviceId'])
       .leftJoinAndSelect('r.device', 'device')
-      .addSelect([
-        'r.latitudeCleaned',
-        'r.longitudeCleaned',
-      ])
+      .addSelect(['r.latitudeCleaned', 'r.longitudeCleaned'])
+      .orderBy('r.deviceId', 'ASC')
+      .addOrderBy('r.timestamp', 'DESC')
       .getMany();
 
     return latestPerDevice.map((r) => ({

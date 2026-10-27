@@ -4,13 +4,19 @@ import { GPSReading } from './gps-reading.entity';
 /**
  * Returns the most recent reading for each of the given devices.
  *
- * Deliberately does **not** use `ROW_NUMBER() OVER (PARTITION BY "deviceId")`:
- * that window function has to materialise every reading ever recorded for the
- * device before the caller discards all but row 1. On production data
- * (~3.4M readings) a single call allocated several GB and OOM-killed the API.
+ * Two things matter here:
  *
- * The correlated `MAX("timestamp")` subquery only touches the newest row per
- * device and is served by the `("deviceId", "timestamp" DESC)` index.
+ * 1. No `ROW_NUMBER() OVER (PARTITION BY "deviceId")`. That window function
+ *    materialises every reading ever recorded for the device before the caller
+ *    discards all but row 1 — on production data (~3.4M readings) a single
+ *    call allocated several GB and OOM-killed the API.
+ * 2. No correlated `MAX("timestamp")` subquery either. Postgres still scans
+ *    every row of the outer relation to evaluate it per row (minutes, not
+ *    milliseconds).
+ *
+ * `DISTINCT ON` with `ORDER BY "deviceId", "timestamp" DESC` is served by the
+ * `idx_readings_device_timestamp` index: one backward index scan per device,
+ * so the cost is proportional to the number of devices, not to history size.
  */
 export async function latestReadingsByDevice(
   readings: Repository<GPSReading>,
@@ -19,17 +25,14 @@ export async function latestReadingsByDevice(
   const byDevice = new Map<string, Record<string, any>>();
   if (deviceIds.length === 0) return byDevice;
 
-  const rows = await readings
-    .createQueryBuilder('r')
-    .select('r.*')
-    .where('r."deviceId" IN (:...deviceIds)', { deviceIds })
-    .andWhere(
-      `r."timestamp" = (
-        SELECT MAX(r2."timestamp") FROM gps_readings r2
-        WHERE r2."deviceId" = r."deviceId"
-      )`,
-    )
-    .getRawMany<Record<string, any>>();
+  const placeholders = deviceIds.map((_, i) => `$${i + 1}`).join(', ');
+  const rows: Record<string, any>[] = await readings.query(
+    `SELECT DISTINCT ON ("deviceId") *
+       FROM gps_readings
+      WHERE "deviceId" IN (${placeholders})
+      ORDER BY "deviceId", "timestamp" DESC`,
+    deviceIds,
+  );
 
   for (const row of rows) {
     byDevice.set(row.deviceId, row);

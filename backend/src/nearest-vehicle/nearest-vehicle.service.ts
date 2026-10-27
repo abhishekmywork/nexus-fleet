@@ -59,7 +59,8 @@ export class NearestVehicleService {
 
     const latestReadings = await this.readings
       .createQueryBuilder('r')
-      .select('DISTINCT ON (r.deviceId) r.*')
+      .select('r.*')
+      .distinctOn(['r.deviceId'])
       .where('r.deviceId IN (:...deviceIds)', { deviceIds })
       .orderBy('r.deviceId', 'ASC')
       .addOrderBy('r.timestamp', 'DESC')
