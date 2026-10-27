@@ -121,6 +121,7 @@ profile and disabled, because PM2 owns port 20000.
 - `https://ranaghat.mstechind.com/login`
 - the public tenant API
 - containers in `restarting` / `exited` state
+- containers that restarted in the last 15 minutes (crash loop)
 - GPS stream freshness (fails if the newest entry is older than 10 minutes)
 - PM2 `e101-tcp` is running
 - root disk below 85%

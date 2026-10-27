@@ -36,6 +36,20 @@ RESTARTING=$(docker ps --filter "status=restarting" --format '{{.Names}}' 2>/dev
 EXITED=$(docker ps -a --filter "status=exited" --format '{{.Names}}' 2>/dev/null | grep -E '^nexus-fleet-' || true)
 [ -n "$EXITED" ] && add "containers exited: $(echo "$EXITED" | tr '\n' ' ')"
 
+# Crash loops: a container that restarted and came back within the last 15 min.
+# `docker ps` shows "Up 12 seconds" for these, which is easy to miss.
+NOW=$(date +%s)
+for name in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -E '^nexus-fleet-'); do
+  restarts=$(docker inspect -f '{{.RestartCount}}' "$name" 2>/dev/null || echo 0)
+  started=$(docker inspect -f '{{.State.StartedAt}}' "$name" 2>/dev/null || true)
+  [ -z "$started" ] && continue
+  started_s=$(date -d "$started" +%s 2>/dev/null || echo 0)
+  age=$(( NOW - started_s ))
+  if [ "${restarts:-0}" -gt 0 ] && [ "$age" -lt 900 ]; then
+    add "$name crash-looping (${restarts} restarts, up ${age}s)"
+  fi
+done
+
 # --- GPS ingest freshness ---------------------------------------------------
 PW=$(grep '^REDIS_PASSWORD=' /opt/nexus-fleet/.env 2>/dev/null | cut -d= -f2-)
 if [ -n "$PW" ]; then
