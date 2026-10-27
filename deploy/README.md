@@ -137,6 +137,29 @@ The watchdog only detects — it never restarts anything. Pair it with an extern
 monitor (UptimeRobot or similar) on the three public URLs, so an outage pages
 someone instead of being discovered days later.
 
+## Database indexes
+
+TypeORM runs with `synchronize: true`, which **drops any index it does not know
+about** on every boot. Indexes created by hand with `psql` therefore disappear
+the next time the API restarts — declare them with `@Index` on the entity
+instead (`backend/src/gps-devices/gps-reading.entity.ts`).
+
+On `gps_readings` (~3.4M rows) the indexes are:
+
+| Index | Purpose |
+| --- | --- |
+| `idx_readings_device_timestamp` on `("deviceId", "timestamp")` | newest reading per device; also the GPS cleaner and per-device reports |
+| `idx_readings_unprocessed` on `("timestamp") WHERE processed = false` | GPS cleaner backfill queue |
+
+There is deliberately **no plain `("timestamp")` index**. With one, Postgres
+plans "newest reading for device X" as a backward scan of the whole timestamp
+index, discarding ~340k rows per device that stopped reporting — 2.6s per
+live-map poll and ~68M index tuples read per request. Without it the planner
+uses the `("deviceId", "timestamp")` prefix and the same query takes 0.02s.
+The cost is that the unfiltered telemetry list (global `ORDER BY timestamp`)
+sorts instead of using an index: ~1.7s for a page that is normally used with
+a date filter.
+
 ## Deploying application changes
 
 ```bash

@@ -11,9 +11,13 @@ import { GPSDevice } from './gps-device.entity';
 
 // `synchronize: true` drops any index it does not know about, so every index
 // the application relies on has to be declared here.
+//
+// Deliberately no plain ("timestamp") index: with it, "newest reading for
+// device X" was planned as a backward scan of the whole timestamp index that
+// discards ~340k rows per idle device (2.6s per live-map poll). Without it
+// Postgres uses the ("deviceId", "timestamp") prefix instead: 0.02s.
 @Entity('gps_readings')
 @Index('idx_readings_device_timestamp', ['deviceId', 'timestamp'])
-@Index('idx_readings_timestamp', ['timestamp'])
 @Index('idx_readings_unprocessed', ['timestamp'], { where: '"processed" = false' })
 export class GPSReading {
   @PrimaryGeneratedColumn('uuid')
