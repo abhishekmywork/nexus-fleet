@@ -273,7 +273,7 @@ export class OpsService implements OnModuleInit, OnModuleDestroy {
            c."count24" AS "count24"
          FROM gps_devices d
          LEFT JOIN vehicles v ON v.id = d."vehicleId" AND v."deletedAt" IS NULL
-         LEFT JOIN tenants t ON t.id = d."tenantId"
+         LEFT JOIN tenants t ON t.id::text = d."tenantId"
          LEFT JOIN LATERAL (
            SELECT r."timestamp" AS "lastSeen", r."batteryV", r."gsmSignal"
            FROM gps_readings r
