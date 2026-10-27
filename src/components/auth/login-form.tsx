@@ -6,6 +6,7 @@ import { Loader2, Lock, LogIn, Mail, ShieldCheck, Sparkles, UserPlus, Building2 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useTenant } from "@/components/tenant/tenant-provider";
 import { api } from "@/lib/api";
+import { extractTenantSlug } from "@/lib/tenant-host";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,14 +82,14 @@ export function LoginForm() {
         toast.info("Two-factor verification required");
       } else {
         toast.success("Signed in successfully");
-        const hasSubdomain = typeof window !== "undefined" && window.location.hostname.split(".").length > 2;
+        const hasSubdomain = typeof window !== "undefined" && !!extractTenantSlug(window.location.hostname);
         router.replace(hasSubdomain ? "/live-map" : "/");
         router.refresh();
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       if (message.includes("subscription is not active") || message.includes("subscription has been")) {
-        const slug = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : "";
+        const slug = typeof window !== "undefined" ? extractTenantSlug(window.location.hostname) ?? "" : "";
         router.push(`/subscription-blocked?tenant=${encodeURIComponent(slug)}`);
         return;
       }
@@ -105,13 +106,13 @@ export function LoginForm() {
     try {
       await completeTwoFactor(challenge.twoFactorToken, code);
       toast.success("Signed in successfully");
-      const hasSubdomain2 = typeof window !== "undefined" && window.location.hostname.split(".").length > 2;
+      const hasSubdomain2 = typeof window !== "undefined" && !!extractTenantSlug(window.location.hostname);
       router.replace(hasSubdomain2 ? "/live-map" : "/");
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Invalid verification code";
       if (message.includes("subscription is not active") || message.includes("subscription has been")) {
-        const slug = typeof window !== "undefined" ? window.location.hostname.split(".")[0] : "";
+        const slug = typeof window !== "undefined" ? extractTenantSlug(window.location.hostname) ?? "" : "";
         router.push(`/subscription-blocked?tenant=${encodeURIComponent(slug)}`);
         return;
       }

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { extractTenantSlug } from "@/lib/tenant-host";
 
 export interface TenantInfo {
   id: string;
@@ -23,27 +24,18 @@ interface TenantContextValue {
 const TenantContext = React.createContext<TenantContextValue | null>(null);
 
 /**
- * Extracts the subdomain from the current browser hostname.
+ * Extracts the tenant subdomain from the current browser hostname.
+ * Reserved hosts (`admin`, `www`, `app`, `api`, `fleet`) resolve to `null`.
  *
  * - `ranaghat.mstechind.com` → `ranaghat`
+ * - `admin.mstechind.com` → `null`
  * - `mstechind.com` → `null`
  * - `localhost` → `null`
  * - `147.93.31.140` → `null`
  */
 function extractSubdomain(): string | null {
   if (typeof window === "undefined") return null;
-  const hostname = window.location.hostname;
-
-  // Skip IPs
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
-  // Skip localhost
-  if (hostname === "localhost") return null;
-
-  const parts = hostname.split(".");
-  // Need at least 3 parts for a subdomain
-  if (parts.length < 3) return null;
-
-  return parts[0];
+  return extractTenantSlug(window.location.hostname);
 }
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {

@@ -32,6 +32,7 @@ import type {
   CreatePlanDto,
   UpdatePlanDto,
 } from "@/lib/auth-types";
+import { extractTenantSlug } from "@/lib/tenant-host";
 
 export interface ImportValidationResult<T> {
   valid: T[];
@@ -49,12 +50,7 @@ export const UNAUTHORIZED_EVENT = "nexus:unauthorized";
 /** Extract subdomain from browser hostname for tenant resolution. */
 function getSubdomainSlug(): string | null {
   if (typeof window === "undefined") return null;
-  const hostname = window.location.hostname;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
-  if (hostname === "localhost") return null;
-  const parts = hostname.split(".");
-  if (parts.length < 3) return null;
-  return parts[0];
+  return extractTenantSlug(window.location.hostname);
 }
 
 /** Storage helpers — guarded so they can run during SSR safely. */

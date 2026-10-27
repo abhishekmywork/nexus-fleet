@@ -31,6 +31,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: "https://mstechind.com/sitemap.xml",
+    sitemap: "https://admin.mstechind.com/sitemap.xml",
   };
 }

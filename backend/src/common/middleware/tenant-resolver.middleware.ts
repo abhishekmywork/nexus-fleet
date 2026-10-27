@@ -14,6 +14,18 @@ import { Tenant } from '../../tenants/tenant.entity';
  */
 @Injectable()
 export class TenantResolverMiddleware implements NestMiddleware {
+  /**
+   * Hostnames that are platform infrastructure, never tenants.
+   * `admin.mstechind.com` is the super-admin panel; the rest are aliases.
+   */
+  private static readonly RESERVED_SUBDOMAINS = new Set([
+    'admin',
+    'www',
+    'app',
+    'api',
+    'fleet',
+  ]);
+
   constructor(
     @InjectRepository(Tenant)
     private readonly tenants: Repository<Tenant>,
@@ -64,6 +76,11 @@ export class TenantResolverMiddleware implements NestMiddleware {
 
     // The subdomain is everything before the last two parts
     // e.g., ranaghat.mstechind.com → parts[0] = 'ranaghat'
-    return parts[0];
+    const slug = parts[0].toLowerCase();
+
+    // Reserved hosts are not tenants (admin.mstechind.com → super-admin panel)
+    if (TenantResolverMiddleware.RESERVED_SUBDOMAINS.has(slug)) return null;
+
+    return slug;
   }
 }
