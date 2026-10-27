@@ -134,6 +134,7 @@ const stats = {
   alreadyPresent: 0,
   acked: 0,
   deletedByRedis: 0,
+  unknownImeis: new Set<string>(),
 };
 
 function bump(reason: SkipReason) {
@@ -185,6 +186,8 @@ class PelCleanup {
       return { skip: 'malformed' };
     }
 
+    if (data.fix_valid === false) return { skip: 'invalid_fix' };
+
     if (
       !data.imei ||
       data.latitude === null ||
@@ -195,10 +198,11 @@ class PelCleanup {
       return { skip: 'missing_fields' };
     }
 
-    if (data.fix_valid === false) return { skip: 'invalid_fix' };
-
     const deviceId = await this.deviceIdFor(String(data.imei));
-    if (!deviceId) return { skip: 'unknown_imei' };
+    if (!deviceId) {
+      stats.unknownImeis.add(String(data.imei));
+      return { skip: 'unknown_imei' };
+    }
 
     if (typeof data.timestamp !== 'number' || !Number.isFinite(data.timestamp)) {
       return { skip: 'no_timestamp' };
@@ -392,6 +396,9 @@ function report() {
   line('replayable readings', stats.replayable);
   for (const [reason, count] of Object.entries(stats.skipped)) {
     line(`skipped: ${reason}`, count);
+  }
+  if (stats.unknownImeis.size > 0) {
+    line('unregistered IMEIs', [...stats.unknownImeis].join(', '));
   }
   console.log('');
 }
