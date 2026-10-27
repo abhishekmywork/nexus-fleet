@@ -173,6 +173,37 @@ The watchdog only detects — it never restarts anything. Pair it with an extern
 monitor (UptimeRobot or similar) on the three public URLs, so an outage pages
 someone instead of being discovered days later.
 
+## System Health page
+
+`https://admin.mstechind.com/ops-health` (nav: **System → System Health**) shows
+the ingest pipeline and device coverage. Backed by `backend/src/ops/`:
+
+| Endpoint | Access | Reads |
+| --- | --- | --- |
+| `GET /api/ops/ingest` | super user | `XLEN`, `XRANGE`, `XINFO GROUPS/CONSUMERS`, `XPENDING` |
+| `GET /api/ops/volume?hours=24` | super user | `gps_readings` per device, bucketed by hour |
+| `GET /api/ops/orphans` | super user | Redis hashes written by the consumer |
+| `GET /api/ops/integrity` | super user | duplicate groups + cleaner backlog |
+| `GET /api/ops/devices` | tenant scoped | per-device last seen, 24h count, battery, signal |
+
+Everything on the ingest panel is O(1) in Redis, so the page can poll every
+minute without touching the stream contents. Responses are cached in-process
+(5s ingest, 30s devices, 60s volume, 5min integrity).
+
+Infrastructure routes carry **both** `@RequireSuperUser()` and
+`@UseGuards(SuperUserGuard)`. The guard is not registered globally and returns
+`true` when the metadata is absent, so `@UseGuards` alone would be a no-op.
+
+The consumer maintains the counters the page reads (`telemetry-consumer.service.ts`):
+
+- `ops:discards:<YYYY-MM-DD>` — `HINCRBY` per skip reason
+  (`malformed`, `missing_fields`, `invalid_fix`, `unknown_imei`), 30-day TTL.
+- `ops:unknown_imei_count` / `_first` / `_last` — packets, first seen, last seen
+  and last position for IMEIs with no `gps_devices` row, 30-day TTL.
+
+These are deliberately counters rather than stream scans: an orphan IMEI shows up
+within one batch instead of requiring a Lua walk over 100k entries.
+
 ## Database indexes
 
 TypeORM runs with `synchronize: true`, which **drops any index it does not know
