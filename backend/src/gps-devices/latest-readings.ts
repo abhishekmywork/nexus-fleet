@@ -4,19 +4,17 @@ import { GPSReading } from './gps-reading.entity';
 /**
  * Returns the most recent reading for each of the given devices.
  *
- * Two things matter here:
+ * This must stay cheap: production holds ~3.4M readings, and anything that
+ * materialises history per call has already taken the API down twice.
  *
- * 1. No `ROW_NUMBER() OVER (PARTITION BY "deviceId")`. That window function
- *    materialises every reading ever recorded for the device before the caller
- *    discards all but row 1 — on production data (~3.4M readings) a single
- *    call allocated several GB and OOM-killed the API.
- * 2. No correlated `MAX("timestamp")` subquery either. Postgres still scans
- *    every row of the outer relation to evaluate it per row (minutes, not
- *    milliseconds).
+ *  - `ROW_NUMBER() OVER (PARTITION BY "deviceId")` sorts every reading of the
+ *    device before the caller keeps row 1 → several GB of heap → OOM.
+ *  - `DISTINCT ON ("deviceId") ... ORDER BY ...` is correct but Postgres may
+ *    still choose a parallel seq scan + external merge sort (~4.7s).
  *
- * `DISTINCT ON` with `ORDER BY "deviceId", "timestamp" DESC` is served by the
- * `idx_readings_device_timestamp` index: one backward index scan per device,
- * so the cost is proportional to the number of devices, not to history size.
+ * A LATERAL `ORDER BY "timestamp" DESC LIMIT 1` per device is a single
+ * backward index dive on `idx_readings_device_timestamp`, so the cost scales
+ * with the number of devices, not with history size.
  */
 export async function latestReadingsByDevice(
   readings: Repository<GPSReading>,
@@ -25,12 +23,17 @@ export async function latestReadingsByDevice(
   const byDevice = new Map<string, Record<string, any>>();
   if (deviceIds.length === 0) return byDevice;
 
-  const placeholders = deviceIds.map((_, i) => `$${i + 1}`).join(', ');
+  const values = deviceIds.map((_, i) => `($${i + 1}::uuid)`).join(', ');
   const rows: Record<string, any>[] = await readings.query(
-    `SELECT DISTINCT ON ("deviceId") *
-       FROM gps_readings
-      WHERE "deviceId" IN (${placeholders})
-      ORDER BY "deviceId", "timestamp" DESC`,
+    `SELECT r.*
+       FROM (VALUES ${values}) AS d(id)
+       JOIN LATERAL (
+         SELECT *
+           FROM gps_readings g
+          WHERE g."deviceId" = d.id
+          ORDER BY g."timestamp" DESC
+          LIMIT 1
+       ) r ON TRUE`,
     deviceIds,
   );
 
@@ -39,4 +42,26 @@ export async function latestReadingsByDevice(
   }
 
   return byDevice;
+}
+
+/**
+ * Ids of the newest reading of every GPS device (one index dive per device).
+ * Used where the caller needs full entities/relations rather than raw rows.
+ */
+export async function latestReadingIdsForAllDevices(
+  readings: Repository<GPSReading>,
+): Promise<string[]> {
+  const rows: { id: string }[] = await readings.query(
+    `SELECT r.id
+       FROM gps_devices d
+       JOIN LATERAL (
+         SELECT g.id
+           FROM gps_readings g
+          WHERE g."deviceId" = d.id
+          ORDER BY g."timestamp" DESC
+          LIMIT 1
+       ) r ON TRUE`,
+  );
+
+  return rows.map((row) => row.id);
 }

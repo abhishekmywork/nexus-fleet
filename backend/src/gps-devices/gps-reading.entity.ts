@@ -2,13 +2,19 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { GPSDevice } from './gps-device.entity';
 
+// `synchronize: true` drops any index it does not know about, so every index
+// the application relies on has to be declared here.
 @Entity('gps_readings')
+@Index('idx_readings_device_timestamp', ['deviceId', 'timestamp'])
+@Index('idx_readings_timestamp', ['timestamp'])
+@Index('idx_readings_unprocessed', ['timestamp'], { where: '"processed" = false' })
 export class GPSReading {
   @PrimaryGeneratedColumn('uuid')
   id: string;

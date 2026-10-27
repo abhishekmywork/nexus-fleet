@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual } from 'typeorm';
+import { Repository, In, MoreThanOrEqual } from 'typeorm';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
+import { latestReadingIdsForAllDevices } from '../gps-devices/latest-readings';
 import { GlobalSettingsService } from '../settings/global-settings.service';
 
 export interface TelemetryQueryDto {
@@ -71,14 +72,13 @@ export class TelemetryService {
   async findLatestPerDevice() {
     const useCorrected = await this.globalSettings.isCorrectedCoordsEnabled();
 
-    const latestPerDevice = await this.readings
-      .createQueryBuilder('r')
-      .distinctOn(['r.deviceId'])
-      .leftJoinAndSelect('r.device', 'device')
-      .addSelect(['r.latitudeCleaned', 'r.longitudeCleaned'])
-      .orderBy('r.deviceId', 'ASC')
-      .addOrderBy('r.timestamp', 'DESC')
-      .getMany();
+    const ids = await latestReadingIdsForAllDevices(this.readings);
+    if (ids.length === 0) return [];
+
+    const latestPerDevice = await this.readings.find({
+      where: { id: In(ids) },
+      relations: { device: true },
+    });
 
     return latestPerDevice.map((r) => ({
       ...r,

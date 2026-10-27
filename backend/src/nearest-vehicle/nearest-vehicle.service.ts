@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { GPSDevice } from '../gps-devices/gps-device.entity';
 import { GPSReading } from '../gps-devices/gps-reading.entity';
+import { latestReadingsByDevice } from '../gps-devices/latest-readings';
 import type { AuthenticatedUser } from '../common/interfaces/auth-user.interface';
 
 interface VehicleWithPosition {
@@ -57,18 +58,11 @@ export class NearestVehicleService {
       return [];
     }
 
-    const latestReadings = await this.readings
-      .createQueryBuilder('r')
-      .select('r.*')
-      .distinctOn(['r.deviceId'])
-      .where('r.deviceId IN (:...deviceIds)', { deviceIds })
-      .orderBy('r.deviceId', 'ASC')
-      .addOrderBy('r.timestamp', 'DESC')
-      .getRawMany();
+    const latestReadings = await latestReadingsByDevice(this.readings, deviceIds);
 
-    const readingsMap = new Map<string, typeof latestReadings[0]>();
-    for (const r of latestReadings) {
-      readingsMap.set(r.deviceId, r);
+    const readingsMap = new Map<string, Record<string, any>>();
+    for (const [deviceId, row] of latestReadings) {
+      readingsMap.set(deviceId, row);
     }
 
     const result: VehicleWithPosition[] = [];
