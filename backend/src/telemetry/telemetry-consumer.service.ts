@@ -161,6 +161,14 @@ export class TelemetryConsumerService
   ) {
     const idsToAck: string[] = [];
     const readings: Partial<GPSReading>[] = [];
+    const discards: Record<string, number> = {};
+    const unknownImeis = new Map<
+      string,
+      { count: number; latitude: number | null; longitude: number | null }
+    >();
+    const countDiscard = (reason: string) => {
+      discards[reason] = (discards[reason] ?? 0) + 1;
+    };
     const detectionInputs: {
       deviceId: string;
       imei: string;
@@ -182,18 +190,28 @@ export class TelemetryConsumerService
     for (const [messageId, fields] of messages) {
       try {
         const rawPayload = fields[1];
-        const data: TelemetryPayload = JSON.parse(rawPayload);
+        let data: TelemetryPayload;
+        try {
+          data = JSON.parse(rawPayload);
+        } catch {
+          this.logger.warn(`Skipping message ${messageId}: malformed payload`);
+          countDiscard('malformed');
+          idsToAck.push(messageId);
+          continue;
+        }
 
         if (!data.imei || data.latitude == null || data.longitude == null) {
           this.logger.warn(
             `Skipping message ${messageId}: missing required fields`,
           );
+          countDiscard('missing_fields');
           idsToAck.push(messageId);
           continue;
         }
 
         // Skip invalid GPS fixes
         if (data.fix_valid === false) {
+          countDiscard('invalid_fix');
           idsToAck.push(messageId);
           continue;
         }
@@ -208,6 +226,16 @@ export class TelemetryConsumerService
             this.logger.warn(
               `Skipping message ${messageId}: no device found for IMEI ${data.imei}`,
             );
+            countDiscard('unknown_imei');
+            const known = unknownImeis.get(data.imei) ?? {
+              count: 0,
+              latitude: null,
+              longitude: null,
+            };
+            known.count += 1;
+            known.latitude = data.latitude ?? known.latitude;
+            known.longitude = data.longitude ?? known.longitude;
+            unknownImeis.set(data.imei, known);
             idsToAck.push(messageId);
             continue;
           }
@@ -285,6 +313,7 @@ export class TelemetryConsumerService
       // unknown IMEI, missing fields). They still have to be acknowledged:
       // the consumer only reads new entries ('>'), so anything left in the
       // group PEL is never re-delivered and just accumulates forever.
+      await this.recordDiscards(discards, unknownImeis);
       if (idsToAck.length > 0) {
         try {
           await this.redisClient.xack(
@@ -362,6 +391,60 @@ export class TelemetryConsumerService
         'Database write failed during batch ingestion',
         dbError,
       );
+    }
+
+    await this.recordDiscards(discards, unknownImeis);
+  }
+
+  /**
+   * Persist per-reason discard counters for the System Health page.
+   *
+   * Kept in Redis rather than Postgres: these are short-lived counters, they
+   * are read by a live panel, and a write per batch must stay cheap.
+   */
+  private async recordDiscards(
+    discards: Record<string, number>,
+    unknownImeis: Map<
+      string,
+      { count: number; latitude: number | null; longitude: number | null }
+    >,
+  ) {
+    const reasons = Object.entries(discards);
+    if (reasons.length === 0 && unknownImeis.size === 0) return;
+
+    const TTL = 30 * 24 * 60 * 60;
+    const now = Date.now();
+    const day = new Date(now).toISOString().slice(0, 10);
+
+    try {
+      const pipe = this.redisClient.pipeline();
+      if (reasons.length > 0) {
+        for (const [reason, count] of reasons) {
+          pipe.hincrby(`ops:discards:${day}`, reason, count);
+        }
+        pipe.expire(`ops:discards:${day}`, TTL);
+      }
+      for (const [imei, info] of unknownImeis) {
+        pipe.hincrby('ops:unknown_imei_count', imei, info.count);
+        pipe.hset(
+          'ops:unknown_imei_last',
+          imei,
+          JSON.stringify({
+            lastSeen: now,
+            latitude: info.latitude,
+            longitude: info.longitude,
+          }),
+        );
+        pipe.hsetnx('ops:unknown_imei_first', imei, String(now));
+      }
+      if (unknownImeis.size > 0) {
+        pipe.expire('ops:unknown_imei_count', TTL);
+        pipe.expire('ops:unknown_imei_last', TTL);
+        pipe.expire('ops:unknown_imei_first', TTL);
+      }
+      await pipe.exec();
+    } catch (err) {
+      this.logger.error('Failed to record telemetry discard counters', err);
     }
   }
 }

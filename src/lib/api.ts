@@ -31,6 +31,11 @@ import type {
   TenantInvitation,
   CreatePlanDto,
   UpdatePlanDto,
+  OpsIngest,
+  OpsVolume,
+  OpsOrphans,
+  OpsIntegrity,
+  OpsDevices,
 } from "@/lib/auth-types";
 import { extractTenantSlug } from "@/lib/tenant-host";
 
@@ -401,6 +406,24 @@ export const api = {
         avgSignalStrength: number;
         deviceDetails: Array<{ deviceId: string; imei: string; vehiclePlate: string; lastSeen: string; batteryV: number | null; gsmSignal: number | null }>;
       }>(`/analytics/device-health?from=${from}&to=${to}${extra || ""}`),
+  },
+
+  ops: {
+    /** Super-user only. Live ingest pipeline state. */
+    ingest: () =>
+      request<OpsIngest>("/ops/ingest"),
+    /** Super-user only. Hourly ingestion volume. */
+    volume: (hours = 24) =>
+      request<OpsVolume>(`/ops/volume?hours=${hours}`),
+    /** Super-user only. IMEIs sending data with no registered device. */
+    orphans: () =>
+      request<OpsOrphans>("/ops/orphans"),
+    /** Super-user only. Duplicates and cleaner backlog. */
+    integrity: () =>
+      request<OpsIntegrity>("/ops/integrity"),
+    /** Tenant-scoped per-device data quality. */
+    devices: () =>
+      request<OpsDevices>("/ops/devices"),
   },
 
   permissions: {

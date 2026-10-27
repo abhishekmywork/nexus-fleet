@@ -41,6 +41,7 @@ import { MobileModule } from './mobile/mobile.module';
 import { SubscriptionModule } from './subscriptions/subscription.module';
 import { NearestVehicleModule } from './nearest-vehicle/nearest-vehicle.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { OpsModule } from './ops/ops.module';
 
 @Module({
   imports: [
@@ -112,6 +113,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     MobileModule,
     SubscriptionModule,
     NearestVehicleModule,
+    OpsModule,
   ],
   providers: [
     SeedService,

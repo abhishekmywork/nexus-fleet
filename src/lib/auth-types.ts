@@ -586,3 +586,97 @@ export interface UpdatePlanDto {
   isDefault?: boolean;
   sortOrder?: number;
 }
+
+/* ------------------------------------------------------------------ */
+/* System health (ops)                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface OpsIngest {
+  generatedAt: string;
+  status: "healthy" | "degraded" | "critical";
+  stream: {
+    length: number;
+    firstId: string | null;
+    lastId: string | null;
+    lastEntryAgeMs: number | null;
+  };
+  group: {
+    name: string;
+    consumers: number;
+    pending: number;
+    lag: number | null;
+    lastDeliveredId: string | null;
+  };
+  consumers: Array<{
+    name: string;
+    pending: number;
+    idleMs: number;
+    inactiveMs: number;
+  }>;
+  discards: {
+    date: string;
+    invalid_fix: number;
+    unknown_imei: number;
+    missing_fields: number;
+    malformed: number;
+    total: number;
+  };
+}
+
+export interface OpsVolume {
+  windowHours: number;
+  total: number;
+  series: Array<{ hour: string; count: number }>;
+}
+
+export interface OpsOrphan {
+  imei: string;
+  packets: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface OpsOrphans {
+  generatedAt: string;
+  count: number;
+  orphans: OpsOrphan[];
+}
+
+export interface OpsIntegrity {
+  windowHours: number;
+  totalReadings: number;
+  duplicates: number;
+  unprocessedBacklog: number;
+}
+
+export type OpsDeviceStatus = "online" | "stale" | "offline" | "never";
+
+export interface OpsDevice {
+  deviceId: string;
+  imei: string;
+  serialNumber: string | null;
+  simNo: string | null;
+  plateNumber: string | null;
+  tenantName: string | null;
+  lastSeen: string | null;
+  ageMs: number | null;
+  readings24h: number;
+  batteryV: number | null;
+  gsmSignal: number | null;
+  status: OpsDeviceStatus;
+}
+
+export interface OpsDevices {
+  generatedAt: string;
+  summary: {
+    total: number;
+    online: number;
+    stale: number;
+    offline: number;
+    never: number;
+    unlinked: number;
+  };
+  devices: OpsDevice[];
+}
