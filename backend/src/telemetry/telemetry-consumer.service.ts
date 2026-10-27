@@ -280,7 +280,27 @@ export class TelemetryConsumerService
       }
     }
 
-    if (readings.length === 0) return;
+    if (readings.length === 0) {
+      // Every message in the batch was deliberately skipped (invalid GPS fix,
+      // unknown IMEI, missing fields). They still have to be acknowledged:
+      // the consumer only reads new entries ('>'), so anything left in the
+      // group PEL is never re-delivered and just accumulates forever.
+      if (idsToAck.length > 0) {
+        try {
+          await this.redisClient.xack(
+            this.STREAM_KEY,
+            this.GROUP_NAME,
+            ...idsToAck,
+          );
+        } catch (ackError) {
+          this.logger.error(
+            'Failed to acknowledge skipped telemetry batch',
+            ackError,
+          );
+        }
+      }
+      return;
+    }
 
     try {
       await this.readings

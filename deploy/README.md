@@ -112,6 +112,41 @@ Two local modifications to `server.js` (not in this repo):
 `tcp-server` exists in `docker-compose.yml` but is behind the `docker-ingest`
 profile and disabled, because PM2 owns port 20000.
 
+## Telemetry consumer PEL
+
+The backend reads the stream with `XREADGROUP ... '>'`, so a delivered message
+that is never `XACK`ed stays in the consumer group's pending entries list (PEL)
+**forever** — it is never re-delivered and nothing retries it. The group only
+sees new entries.
+
+Entries accumulate from two sources:
+
+1. Messages the consumer deliberately skips — invalid GPS fix, unknown IMEI,
+   missing fields. Nothing is lost, they are just never acknowledged.
+2. A batch that was delivered but never written, e.g. a backend restart or
+   crash mid-batch. These are real readings, recoverable only while the entry
+   is still inside the stream (`XTRIM MAXLEN ~ 100000` deletes the oldest).
+
+`backend/src/scripts/pel-cleanup.ts` (compiled to `dist/scripts/pel-cleanup.js`)
+walks the PEL, replays whatever is still in the stream through the same
+validation + insert path as the consumer, then acknowledges everything. Redis 7
+drops the already-trimmed ids automatically during `XAUTOCLAIM`.
+
+```bash
+# report only, changes nothing
+docker exec nexus-fleet-backend-1 node dist/scripts/pel-cleanup.js
+
+# replay survivors and drain the PEL
+docker exec nexus-fleet-backend-1 node dist/scripts/pel-cleanup.js --apply
+
+# check
+docker exec nexus-fleet-redis-1 redis-cli -a "$REDIS_PASSWORD" --no-auth-warning \
+  xpending gps:telemetry:stream nestjs-telemetry-group
+```
+
+`PEL_MIN_IDLE_MS` (default `300000`, 5 minutes) keeps in-flight batches out of
+reach, so the drain never races the live consumer.
+
 ## Health watchdog
 
 `scripts/nexus-healthcheck.sh` runs from cron every 5 minutes and checks:
